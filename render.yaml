@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: audit-app
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    envVars:
+      - key: SERPAPI_KEY
+        sync: false

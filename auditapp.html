@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Strict NAP & Ghost Profile Presentation Audit</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between p-4 md:p-6 select-none">
+
+  <!-- TOP BAR: Comprehensive Business Input -->
+  <header class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl mb-6">
+    <form id="auditForm" onsubmit="runStrictAudit(event)" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div>
+        <input type="text" id="bizName" required placeholder="Business Name" value="Bob's HVAC & Plumbing, LLC" 
+               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+      </div>
+      <div>
+        <input type="text" id="bizPhone" required placeholder="Phone Number" value="(417) 555-0199" 
+               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+      </div>
+      <div>
+        <input type="text" id="bizAddress" required placeholder="Street Address" value="123 Main St, Suite B" 
+               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="text" id="bizCity" required placeholder="City" value="Branson" 
+               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+        <input type="text" id="bizZip" required placeholder="Zip Code" value="65616" 
+               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+      </div>
+      <button type="submit" class="bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-semibold py-2 px-4 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 text-sm">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <span>Run Strict Audit</span>
+      </button>
+    </form>
+  </header>
+
+  <!-- MAIN AUDIT DISPLAY -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    
+    <!-- LEFT PANEL: Score & Ghost Alert -->
+    <div class="lg:col-span-1 flex flex-col gap-6">
+      
+      <!-- Overall Score Card -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl text-center flex flex-col items-center justify-center relative">
+        <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-2">Exact Match Trust Score</span>
+        
+        <div class="relative my-2 flex items-center justify-center">
+          <svg class="w-44 h-44 transform -rotate-90">
+            <circle cx="88" cy="88" r="70" stroke="currentColor" stroke-width="12" class="text-slate-800" fill="transparent" />
+            <circle cx="88" cy="88" r="70" stroke="currentColor" stroke-width="12" class="text-red-500" stroke-linecap="round" fill="transparent"
+                    stroke-dasharray="440" stroke-dashoffset="270" id="scoreCircle" />
+          </svg>
+          <div class="absolute flex flex-col items-center">
+            <span id="scoreText" class="text-5xl font-black text-white">38%</span>
+            <span id="scoreLabel" class="text-xs font-bold text-red-400 mt-1 uppercase tracking-wider">High Risk</span>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-400 mt-2 px-4">
+          Capitalization, punctuation, and structural mismatches trigger AI knowledge graph discrepancies.
+        </p>
+      </div>
+
+      <!-- Ghost Business Banner -->
+      <div class="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-5 shadow-xl flex items-start gap-4">
+        <div class="p-3 bg-purple-500/20 text-purple-400 rounded-xl">
+          <i class="fa-solid fa-ghost text-2xl"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-purple-200">Ghost Business Alert</h3>
+          <p id="ghostAlertText" class="text-xs text-purple-300/80 mt-1 leading-relaxed">
+            Unverified legacy profiles on Foursquare and local directories create ghost data that dilutes map ranking.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL: Directory Node Breakdown with Individual Progress Bars -->
+    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-[#0070e0] fa-network-wired text-blue-500"></i>
+            Strict String & Data Node Breakdown
+          </h2>
+          <span class="text-xs text-slate-400">7 Nodes Evaluated</span>
+        </div>
+
+        <!-- Node List Container -->
+        <div id="nodeContainer" class="divide-y divide-slate-800/60 text-sm mt-2">
+          <!-- Dynamically populated via JS below -->
+        </div>
+      </div>
+
+      <button onclick="openModal()" class="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 active:scale-98 transition-all text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-3 text-lg">
+        <i class="fa-solid fa-shield-halved text-xl"></i>
+        <span>Lock Certified Record & Clear Ghost Profiles</span>
+      </button>
+    </div>
+
+  </main>
+
+  <script>
+    const mockDirectories = [
+      { node: "Google Business Profile", icon: "fa-brands fa-google", name: "Bob's HVAC & Plumbing, LLC", address: "123 Main St, Suite B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
+      { node: "Apple Maps", icon: "fa-brands fa-apple", name: "Bobs HVAC and Plumbing LLC", address: "123 Main St Suite B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
+      { node: "Foursquare (Location Graph)", icon: "fa-brands fa-foursquare", name: "Bob's HVAC & Plumbing", address: "123 Main Street", city: "Branson", zip: "65616", phone: "4175550199", isGhost: true },
+      { node: "Yelp Directory", icon: "fa-brands fa-yelp", name: "Bob's HVAC & Plumbing, Inc.", address: "123 Main St, Ste B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
+      { node: "Bing Places", icon: "fa-solid fa-map-pin", name: "Bob's HVAC & Plumbing, LLC", address: "123 Main St, Suite B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
+      { node: "Unclaimed Duplicate Node", icon: "fa-solid fa-ghost", name: "Bob's Heating & AC", address: "100 Old County Rd", city: "Branson", zip: "65616", phone: "(417) 555-0000", isGhost: true },
+      { node: "AI Knowledge Graph", icon: "fa-solid fa-robot", name: "Bobs HVAC & Plumbing", address: "123 Main St", city: "Branson", zip: "65616", phone: "(417) 555-0199" }
+    ];
+
+    function evaluateExactMatch(input, directory) {
+      let score = 0;
+      let issues = [];
+
+      // 1. Business Name Check (Exact Punctuation & Case)
+      if (input.name === directory.name) score += 25;
+      else issues.push(`Name mismatch ("${directory.name}")`);
+
+      // 2. Address Check
+      if (input.address === directory.address) score += 25;
+      else issues.push(`Address formatting mismatch ("${directory.address}")`);
+
+      // 3. City & Zip Check
+      if (input.city === directory.city && input.zip === directory.zip) score += 25;
+      else issues.push(`City/Zip formatting discrepancy`);
+
+      // 4. Phone Check (Punctuation & Parentheses)
+      if (input.phone === directory.phone) score += 25;
+      else issues.push(`Phone format mismatch ("${directory.phone}")`);
+
+      return { score, issues };
+    }
+
+    function runStrictAudit(e) {
+      if (e) e.preventDefault();
+
+      const input = {
+        name: document.getElementById('bizName').value,
+        phone: document.getElementById('bizPhone').value,
+        address: document.getElementById('bizAddress').value,
+        city: document.getElementById('bizCity').value,
+        zip: document.getElementById('bizZip').value
+      };
+
+      const container = document.getElementById('nodeContainer');
+      container.innerHTML = '';
+
+      let totalScore = 0;
+      let ghostCount = 0;
+
+      mockDirectories.forEach(dir => {
+        const { score, issues } = evaluateExactMatch(input, dir);
+        totalScore += score;
+
+        let status = "GOOD";
+        let statusClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        let barClass = "bg-emerald-500";
+
+        if (dir.isGhost) {
+          status = "GHOST";
+          statusClass = "bg-purple-500/10 text-purple-400 border-purple-500/20";
+          barClass = "bg-purple-500";
+          ghostCount++;
+        } else if (score < 100 && score >= 50) {
+          status = "ISSUE";
+          statusClass = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+          barClass = "bg-amber-500";
+        } else if (score < 50) {
+          status = "CRITICAL";
+          statusClass = "bg-red-500/10 text-red-400 border-red-500/20";
+          barClass = "bg-red-500";
+        }
+
+        const issueText = issues.length > 0 ? issues.join(" | ") : "100% Strict Match (Case, Punctuation & NAP)";
+
+        container.innerHTML += `
+          <div class="py-3.5 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <i class="${dir.icon} text-slate-400 w-5 text-center"></i>
+                <span class="font-medium text-slate-200">${dir.node}</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-bold text-slate-300">${score}% Match</span>
+                <span class="px-2.5 py-0.5 rounded-md text-xs font-bold ${statusClass}">
+                  ${dir.isGhost ? '<i class="fa-solid fa-ghost text-[10px] mr-1"></i>' : ''}${status}
+                </span>
+              </div>
+            </div>
+            
+            <!-- Progress Meter Bar -->
+            <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div class="${barClass} h-1.5 rounded-full transition-all duration-500" style="width: ${score}%"></div>
+            </div>
+            
+            <span class="text-xs text-slate-400">${issueText}</span>
+          </div>
+        `;
+      });
+
+      // Overall Score Calculation
+      const finalScore = Math.round(totalScore / mockDirectories.length);
+      document.getElementById('scoreText').innerText = `${finalScore}%`;
+      const offset = 440 - (440 * finalScore / 100);
+      document.getElementById('scoreCircle').setAttribute('stroke-dashoffset', offset);
+
+      document.getElementById('ghostAlertText').innerText = 
+        `${ghostCount} ghost profile(s) detected (including Foursquare location nodes). Conflicting capitalization or missing suite tags reduce overall trust scores.`;
+    }
+
+    // Run audit automatically on load
+    window.onload = () => runStrictAudit(null);
+  </script>
+</body>
+</html>
