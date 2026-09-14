@@ -3,3 +3,11 @@ __pycache__/
 *.pyc
 venv/
 desktop.ini
+
+# Accidental artifacts (empty files from mistyped redirects)
+9.0.0
+pip
+py
+New Text Document.txt
+auditonline.txt
+auditonline.html

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: audit-app
+    name: truth-node
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
