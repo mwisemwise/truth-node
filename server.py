@@ -191,7 +191,7 @@ def audit():
     # 2. Directory checks via Google site: search — town included in the query here too
     for label, domain, icon in DIRECTORY_SITES:
         try:
-            q = f'site:{domain} "{name}" {town}'.strip()
+            q = f'site:{domain} {name} {town}'.strip()
             res = serp_get({"engine": "google", "q": q})
             organic = res.get("organic_results", [])
             if organic:
