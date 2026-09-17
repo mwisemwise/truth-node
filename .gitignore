@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 venv/
@@ -11,3 +13,4 @@ py
 New Text Document.txt
 auditonline.txt
 auditonline.html
+.venv/

@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 import requests
@@ -23,6 +23,48 @@ def evaluate_exact_match(target, found):
             f'Capitalization/Punctuation Discrepancy (Found: "{found}")',
         )
     return 30, f'Formatting/Name Mismatch (Found: "{found}")'
+
+
+@app.route("/")
+def index():
+    return send_from_directory(app.root_path, "auditapp.html")
+
+
+@app.route("/api/health")
+def health():
+    """Cheap liveness probe. Pass ?deep=1 to also verify the SerpApi key.
+
+    The deep check hits SerpApi's /account endpoint, which reports plan status
+    without spending a search from the monthly quota.
+    """
+    body = {
+        "status": "ok",
+        "service": "truth-node",
+        "serpapi_key_configured": bool(SERPAPI_KEY),
+    }
+
+    if request.args.get("deep"):
+        if not SERPAPI_KEY:
+            body["serpapi"] = {"ok": False, "error": "SERPAPI_KEY is not set"}
+        else:
+            try:
+                account = requests.get(
+                    "https://serpapi.com/account",
+                    params={"api_key": SERPAPI_KEY},
+                    timeout=12,
+                ).json()
+                if "error" in account:
+                    body["serpapi"] = {"ok": False, "error": account["error"]}
+                else:
+                    body["serpapi"] = {
+                        "ok": True,
+                        "plan": account.get("plan_name"),
+                        "searches_left": account.get("total_searches_left"),
+                    }
+            except Exception as e:
+                body["serpapi"] = {"ok": False, "error": str(e)}
+
+    return jsonify(body)
 
 
 @app.route("/api/audit", methods=["POST"])
