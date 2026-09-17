@@ -218,8 +218,9 @@
         `${ghostCount} ghost profile(s) detected (including Foursquare location nodes). Conflicting capitalization or missing suite tags reduce overall trust scores.`;
     }
 
-    // Run audit automatically on load
-    window.onload = () => runStrictAudit(null);
+    // Deliberately no auto-run on load: once runStrictAudit calls the live
+    // /api/audit endpoint, every page view would spend a SerpApi search from
+    // the 250/month quota. The audit runs only when the form is submitted.
   </script>
 </body>
 </html>
