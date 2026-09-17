@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Strict NAP & Ghost Profile Presentation Audit</title>
+  <title>Synergy — Live Audit</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -12,94 +12,116 @@
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between p-4 md:p-6 select-none">
 
-  <!-- TOP BAR: Comprehensive Business Input -->
+  <!-- TOP BAR: Business Input -->
   <header class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl mb-6">
-    <form id="auditForm" onsubmit="runStrictAudit(event)" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+    <form id="auditForm" autocomplete="off" class="grid grid-cols-1 md:grid-cols-4 gap-3">
       <div>
-        <input type="text" id="bizName" required placeholder="Business Name" value="Bob's HVAC & Plumbing, LLC" 
-               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
-      </div>
-      <div>
-        <input type="text" id="bizPhone" required placeholder="Phone Number" value="(417) 555-0199" 
-               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+        <label class="block text-xs font-semibold text-slate-400 mb-1 ml-1">Business Name <span class="text-red-400">*</span></label>
+        <input type="text" id="bizName" required autocomplete="off" placeholder="e.g. Bob's Plumbing"
+               class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
       </div>
       <div>
-        <input type="text" id="bizAddress" required placeholder="Street Address" value="123 Main St, Suite B" 
-               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+        <label class="block text-xs font-semibold text-slate-400 mb-1 ml-1">Town <span class="text-slate-500">(optional)</span></label>
+        <input type="text" id="bizTown" autocomplete="off" placeholder="e.g. Branson, MO"
+               class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
       </div>
-      <div class="grid grid-cols-2 gap-2">
-        <input type="text" id="bizCity" required placeholder="City" value="Branson" 
-               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
-        <input type="text" id="bizZip" required placeholder="Zip Code" value="65616" 
-               class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1 ml-1">Phone <span class="text-slate-500">(optional)</span></label>
+        <input type="text" id="bizPhone" autocomplete="off" placeholder="e.g. (417) 555-0123"
+               class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
       </div>
-      <button type="submit" class="bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-semibold py-2 px-4 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 text-sm">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <span>Run Strict Audit</span>
-      </button>
+      <div class="flex items-end">
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 text-sm h-[42px]">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span>Run Live Audit</span>
+        </button>
+      </div>
     </form>
   </header>
 
-  <!-- MAIN AUDIT DISPLAY -->
+  <!-- MAIN DISPLAY -->
   <main class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-    
-    <!-- LEFT PANEL: Score & Ghost Alert -->
+
     <div class="lg:col-span-1 flex flex-col gap-6">
-      
-      <!-- Overall Score Card -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl text-center flex flex-col items-center justify-center relative">
-        <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-2">Exact Match Trust Score</span>
-        
+        <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-2">Trust Score</span>
         <div class="relative my-2 flex items-center justify-center">
           <svg class="w-44 h-44 transform -rotate-90">
             <circle cx="88" cy="88" r="70" stroke="currentColor" stroke-width="12" class="text-slate-800" fill="transparent" />
-            <circle cx="88" cy="88" r="70" stroke="currentColor" stroke-width="12" class="text-red-500" stroke-linecap="round" fill="transparent"
-                    stroke-dasharray="440" stroke-dashoffset="270" id="scoreCircle" />
+            <circle cx="88" cy="88" r="70" stroke="currentColor" stroke-width="12" class="text-slate-600" stroke-linecap="round" fill="transparent"
+                    stroke-dasharray="440" stroke-dashoffset="440" id="scoreCircle" />
           </svg>
           <div class="absolute flex flex-col items-center">
-            <span id="scoreText" class="text-5xl font-black text-white">38%</span>
-            <span id="scoreLabel" class="text-xs font-bold text-red-400 mt-1 uppercase tracking-wider">High Risk</span>
+            <span id="scoreText" class="text-5xl font-black text-white">--</span>
+            <span id="scoreLabel" class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">Ready</span>
           </div>
         </div>
-
-        <p class="text-xs text-slate-400 mt-2 px-4">
-          Capitalization, punctuation, and structural mismatches trigger AI knowledge graph discrepancies.
+        <p id="scoreSubtext" class="text-xs text-slate-400 mt-2 px-4">
+          Enter business details above and run the audit.
         </p>
       </div>
 
-      <!-- Ghost Business Banner -->
       <div class="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-5 shadow-xl flex items-start gap-4">
         <div class="p-3 bg-purple-500/20 text-purple-400 rounded-xl">
           <i class="fa-solid fa-ghost text-2xl"></i>
         </div>
         <div>
-          <h3 class="text-base font-bold text-purple-200">Ghost Business Alert</h3>
+          <h3 class="text-base font-bold text-purple-200">Ghost Profile Monitor</h3>
           <p id="ghostAlertText" class="text-xs text-purple-300/80 mt-1 leading-relaxed">
-            Unverified legacy profiles on Foursquare and local directories create ghost data that dilutes map ranking.
+            Flags duplicate or legacy listings competing with the real one.
           </p>
         </div>
       </div>
-
     </div>
 
-    <!-- RIGHT PANEL: Directory Node Breakdown with Individual Progress Bars -->
-    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between gap-6">
       <div>
-        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-          <h2 class="text-lg font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-[#0070e0] fa-network-wired text-blue-500"></i>
-            Strict String & Data Node Breakdown
-          </h2>
-          <span class="text-xs text-slate-400">7 Nodes Evaluated</span>
+        <div id="verificationCard" class="hidden mb-6 bg-slate-800/80 border border-blue-500/40 rounded-xl p-4 shadow-lg">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-700/60 mb-3">
+            <span class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-check"></i> Live Google Business Listing
+            </span>
+            <a id="verMapLink" href="#" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 underline">
+              View on Google Maps <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+            </a>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div>
+              <span class="text-xs text-slate-400 block">Matched Name:</span>
+              <span id="verTitle" class="font-bold text-white text-base"></span>
+            </div>
+            <div>
+              <span class="text-xs text-slate-400 block">Rating & Reviews:</span>
+              <span id="verRating" class="font-medium text-amber-300"></span>
+            </div>
+            <div class="md:col-span-2">
+              <span class="text-xs text-slate-400 block">Public Address:</span>
+              <span id="verAddress" class="text-slate-200"></span>
+            </div>
+            <div class="md:col-span-2">
+              <span class="text-xs text-slate-400 block">Public Phone:</span>
+              <span id="verPhone" class="text-slate-200"></span>
+            </div>
+          </div>
         </div>
 
-        <!-- Node List Container -->
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-network-wired text-blue-500"></i>
+            Directory Breakdown
+          </h2>
+          <span id="statusPill" class="text-xs text-slate-400">Live</span>
+        </div>
+
         <div id="nodeContainer" class="divide-y divide-slate-800/60 text-sm mt-2">
-          <!-- Dynamically populated via JS below -->
+          <div class="py-12 text-center text-slate-500 text-sm">
+            <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block"></i>
+            Enter a business above and run the audit.
+          </div>
         </div>
       </div>
 
-      <button onclick="openModal()" class="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 active:scale-98 transition-all text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-3 text-lg">
+      <button onclick="showLockNotice()" class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-98 transition-all text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-3 text-lg">
         <i class="fa-solid fa-shield-halved text-xl"></i>
         <span>Lock Certified Record & Clear Ghost Profiles</span>
       </button>
@@ -108,119 +130,143 @@
   </main>
 
   <script>
-    const mockDirectories = [
-      { node: "Google Business Profile", icon: "fa-brands fa-google", name: "Bob's HVAC & Plumbing, LLC", address: "123 Main St, Suite B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
-      { node: "Apple Maps", icon: "fa-brands fa-apple", name: "Bobs HVAC and Plumbing LLC", address: "123 Main St Suite B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
-      { node: "Foursquare (Location Graph)", icon: "fa-brands fa-foursquare", name: "Bob's HVAC & Plumbing", address: "123 Main Street", city: "Branson", zip: "65616", phone: "4175550199", isGhost: true },
-      { node: "Yelp Directory", icon: "fa-brands fa-yelp", name: "Bob's HVAC & Plumbing, Inc.", address: "123 Main St, Ste B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
-      { node: "Bing Places", icon: "fa-solid fa-map-pin", name: "Bob's HVAC & Plumbing, LLC", address: "123 Main St, Suite B", city: "Branson", zip: "65616", phone: "(417) 555-0199" },
-      { node: "Unclaimed Duplicate Node", icon: "fa-solid fa-ghost", name: "Bob's Heating & AC", address: "100 Old County Rd", city: "Branson", zip: "65616", phone: "(417) 555-0000", isGhost: true },
-      { node: "AI Knowledge Graph", icon: "fa-solid fa-robot", name: "Bobs HVAC & Plumbing", address: "123 Main St", city: "Branson", zip: "65616", phone: "(417) 555-0199" }
-    ];
+    // Same-origin deploy: the Flask backend serves this file at "/" and the
+    // API at "/api/audit" on the same host, so a relative path always works —
+    // no backend URL to configure or get wrong.
+    const form = document.getElementById('auditForm');
+    form.addEventListener('submit', runAudit);
 
-    function evaluateExactMatch(input, directory) {
-      let score = 0;
-      let issues = [];
-
-      // 1. Business Name Check (Exact Punctuation & Case)
-      if (input.name === directory.name) score += 25;
-      else issues.push(`Name mismatch ("${directory.name}")`);
-
-      // 2. Address Check
-      if (input.address === directory.address) score += 25;
-      else issues.push(`Address formatting mismatch ("${directory.address}")`);
-
-      // 3. City & Zip Check
-      if (input.city === directory.city && input.zip === directory.zip) score += 25;
-      else issues.push(`City/Zip formatting discrepancy`);
-
-      // 4. Phone Check (Punctuation & Parentheses)
-      if (input.phone === directory.phone) score += 25;
-      else issues.push(`Phone format mismatch ("${directory.phone}")`);
-
-      return { score, issues };
-    }
-
-    function runStrictAudit(e) {
+    async function runAudit(e) {
       if (e) e.preventDefault();
 
-      const input = {
-        name: document.getElementById('bizName').value,
-        phone: document.getElementById('bizPhone').value,
-        address: document.getElementById('bizAddress').value,
-        city: document.getElementById('bizCity').value,
-        zip: document.getElementById('bizZip').value
-      };
+      const name = document.getElementById('bizName').value.trim();
+      const town = document.getElementById('bizTown').value.trim();
+      const phone = document.getElementById('bizPhone').value.trim();
+      if (!name) return;
 
       const container = document.getElementById('nodeContainer');
+      const verCard = document.getElementById('verificationCard');
+      verCard.classList.add('hidden');
+
+      container.innerHTML = `
+        <div class="py-12 text-center text-slate-400">
+          <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-500 mb-3 block"></i>
+          Querying live directories for "${escapeHtml(name)}"...
+        </div>`;
+
+      try {
+        const response = await fetch('/api/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, town, phone })
+        });
+
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({}));
+          throw new Error(errBody.error || `Server error (${response.status})`);
+        }
+
+        const data = await response.json();
+        renderResults(data);
+
+      } catch (err) {
+        container.innerHTML = `<div class="py-6 text-center text-red-400">Couldn't complete the audit: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderResults(data) {
+      const container = document.getElementById('nodeContainer');
+      const verCard = document.getElementById('verificationCard');
       container.innerHTML = '';
+
+      if (data.verified_business) {
+        const vb = data.verified_business;
+        document.getElementById('verTitle').innerText = vb.title;
+        document.getElementById('verAddress').innerText = vb.address;
+        document.getElementById('verPhone').innerText = vb.phone;
+        document.getElementById('verRating').innerHTML = `<i class="fa-solid fa-star text-amber-400"></i> ${vb.rating} (${vb.reviews} reviews)`;
+        document.getElementById('verMapLink').href = vb.map_url;
+        verCard.classList.remove('hidden');
+      }
+
+      if (!data.results || data.results.length === 0) {
+        container.innerHTML = `<div class="py-6 text-center text-slate-400">No listing records found anywhere.</div>`;
+        setScore(0, 0);
+        return;
+      }
 
       let totalScore = 0;
       let ghostCount = 0;
 
-      mockDirectories.forEach(dir => {
-        const { score, issues } = evaluateExactMatch(input, dir);
-        totalScore += score;
+      data.results.forEach(item => {
+        totalScore += item.score;
+        if (item.isGhost) ghostCount++;
 
-        let status = "GOOD";
         let statusClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
         let barClass = "bg-emerald-500";
+        let status = "GOOD";
 
-        if (dir.isGhost) {
-          status = "GHOST";
-          statusClass = "bg-purple-500/10 text-purple-400 border-purple-500/20";
-          barClass = "bg-purple-500";
-          ghostCount++;
-        } else if (score < 100 && score >= 50) {
-          status = "ISSUE";
-          statusClass = "bg-amber-500/10 text-amber-400 border-amber-500/20";
-          barClass = "bg-amber-500";
-        } else if (score < 50) {
-          status = "CRITICAL";
-          statusClass = "bg-red-500/10 text-red-400 border-red-500/20";
-          barClass = "bg-red-500";
+        if (item.isGhost) {
+          status = "GHOST"; statusClass = "bg-purple-500/10 text-purple-400 border-purple-500/20"; barClass = "bg-purple-500";
+        } else if (item.score < 60 && item.score >= 30) {
+          status = "ISSUE"; statusClass = "bg-amber-500/10 text-amber-400 border-amber-500/20"; barClass = "bg-amber-500";
+        } else if (item.score < 30) {
+          status = "CRITICAL"; statusClass = "bg-red-500/10 text-red-400 border-red-500/20"; barClass = "bg-red-500";
         }
 
-        const issueText = issues.length > 0 ? issues.join(" | ") : "100% Strict Match (Case, Punctuation & NAP)";
-
         container.innerHTML += `
-          <div class="py-3.5 flex flex-col gap-2">
+          <div class="py-3 flex flex-col gap-1.5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <i class="${dir.icon} text-slate-400 w-5 text-center"></i>
-                <span class="font-medium text-slate-200">${dir.node}</span>
+                <i class="${item.icon} text-slate-400 w-5 text-center"></i>
+                <span class="font-medium text-slate-200">${escapeHtml(item.node)}</span>
               </div>
               <div class="flex items-center gap-3">
-                <span class="text-xs font-bold text-slate-300">${score}% Match</span>
+                <span class="text-xs font-bold text-slate-300">${item.score}%</span>
                 <span class="px-2.5 py-0.5 rounded-md text-xs font-bold ${statusClass}">
-                  ${dir.isGhost ? '<i class="fa-solid fa-ghost text-[10px] mr-1"></i>' : ''}${status}
+                  ${item.isGhost ? '<i class="fa-solid fa-ghost text-[10px] mr-1"></i>' : ''}${status}
                 </span>
               </div>
             </div>
-            
-            <!-- Progress Meter Bar -->
             <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-              <div class="${barClass} h-1.5 rounded-full transition-all duration-500" style="width: ${score}%"></div>
+              <div class="${barClass} h-1.5 rounded-full transition-all duration-500" style="width: ${item.score}%"></div>
             </div>
-            
-            <span class="text-xs text-slate-400">${issueText}</span>
-          </div>
-        `;
+            <span class="text-xs text-slate-400">${escapeHtml(item.issue)}</span>
+          </div>`;
       });
 
-      // Overall Score Calculation
-      const finalScore = Math.round(totalScore / mockDirectories.length);
+      const finalScore = Math.round(totalScore / data.results.length);
+      setScore(finalScore, ghostCount);
+    }
+
+    function setScore(finalScore, ghostCount) {
       document.getElementById('scoreText').innerText = `${finalScore}%`;
       const offset = 440 - (440 * finalScore / 100);
       document.getElementById('scoreCircle').setAttribute('stroke-dashoffset', offset);
 
-      document.getElementById('ghostAlertText').innerText = 
-        `${ghostCount} ghost profile(s) detected (including Foursquare location nodes). Conflicting capitalization or missing suite tags reduce overall trust scores.`;
+      const label = document.getElementById('scoreLabel');
+      if (finalScore >= 80) {
+        label.innerText = "Verified"; label.className = "text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider";
+      } else if (finalScore >= 50) {
+        label.innerText = "Moderate Risk"; label.className = "text-xs font-bold text-amber-400 mt-1 uppercase tracking-wider";
+      } else {
+        label.innerText = "High Risk"; label.className = "text-xs font-bold text-red-400 mt-1 uppercase tracking-wider";
+      }
+
+      document.getElementById('ghostAlertText').innerText = ghostCount > 0
+        ? `${ghostCount} duplicate/ghost listing(s) found competing with the real one — these confuse Google and AI lookups.`
+        : `No duplicate or ghost listings detected.`;
     }
 
-    // Deliberately no auto-run on load: once runStrictAudit calls the live
-    // /api/audit endpoint, every page view would spend a SerpApi search from
-    // the 250/month quota. The audit runs only when the form is submitted.
+    function showLockNotice() {
+      alert("Certified Record locking isn't built yet — that's the next phase (the actual hosted Synergy page). This button is a placeholder for the pitch, not a working feature.");
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.innerText = str ?? '';
+      return div.innerHTML;
+    }
   </script>
 </body>
 </html>
