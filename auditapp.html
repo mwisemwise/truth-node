@@ -89,11 +89,46 @@
     form.addEventListener('submit', runAudit);
 
     const CATEGORIES = [
-      { key: 'name', label: 'Business Name', icon: 'fa-solid fa-signature' },
-      { key: 'address', label: 'Address', icon: 'fa-solid fa-location-dot' },
-      { key: 'phone', label: 'Phone', icon: 'fa-solid fa-phone' },
-      { key: 'email', label: 'Email', icon: 'fa-solid fa-envelope' },
+      { key: 'name', label: 'Business Name', icon: 'fa-solid fa-signature', checkingText: 'Checking name consistency' },
+      { key: 'address', label: 'Address', icon: 'fa-solid fa-location-dot', checkingText: 'Checking listed addresses' },
+      { key: 'phone', label: 'Phone', icon: 'fa-solid fa-phone', checkingText: 'Checking phone numbers' },
+      { key: 'hours', label: 'Hours', icon: 'fa-solid fa-clock', checkingText: 'Checking posted hours' },
+      { key: 'email', label: 'Email', icon: 'fa-solid fa-envelope', checkingText: 'Checking listed emails' },
     ];
+
+    // Sources we actually query right now. Kept as one list so the loading
+    // messages never claim to check a source the backend doesn't call.
+    const SOURCE_LABELS = ['Google Maps', 'Yelp', 'Facebook', 'Better Business Bureau', 'Foursquare'];
+
+    let loadingInterval = null;
+
+    function buildLoadingMessages() {
+      const messages = CATEGORIES.map(c => c.checkingText + '...');
+      SOURCE_LABELS.forEach(s => messages.push(`Evaluating trust signals for ${s}...`));
+      return messages;
+    }
+
+    function startLoadingAnimation(container) {
+      const messages = buildLoadingMessages();
+      let i = 0;
+      container.innerHTML = `
+        <div class="py-12 text-center text-slate-400">
+          <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-500 mb-3 block"></i>
+          <span id="loadingText">${escapeHtml(messages[0])}</span>
+        </div>`;
+      loadingInterval = setInterval(() => {
+        i = (i + 1) % messages.length;
+        const el = document.getElementById('loadingText');
+        if (el) el.innerText = messages[i];
+      }, 850);
+    }
+
+    function stopLoadingAnimation() {
+      if (loadingInterval) {
+        clearInterval(loadingInterval);
+        loadingInterval = null;
+      }
+    }
 
     async function runAudit(e) {
       if (e) e.preventDefault();
@@ -105,11 +140,7 @@
       const container = document.getElementById('categoryContainer');
       const countList = document.getElementById('sourceCountList');
 
-      container.innerHTML = `
-        <div class="py-12 text-center text-slate-400">
-          <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-500 mb-3 block"></i>
-          Querying live directories for "${escapeHtml(name)}"...
-        </div>`;
+      startLoadingAnimation(container);
       countList.innerHTML = `<span class="text-slate-500">Searching...</span>`;
 
       try {
@@ -125,12 +156,36 @@
         }
 
         const data = await response.json();
+        stopLoadingAnimation();
         renderResults(data);
 
       } catch (err) {
+        stopLoadingAnimation();
         container.innerHTML = `<div class="py-6 text-center text-red-400">Couldn't complete the audit: ${escapeHtml(err.message)}</div>`;
         countList.innerHTML = '';
       }
+    }
+
+    function normalize(val) {
+      return (val || '').toString().trim().toLowerCase();
+    }
+
+    // Consensus: does every source that reported a value for this field agree
+    // with the majority? X of N sources match, N = total sources queried.
+    function computeConsensus(sources, key) {
+      const total = sources.length;
+      const counts = {};
+      sources.forEach(s => {
+        const norm = normalize(s[key]);
+        if (norm) counts[norm] = (counts[norm] || 0) + 1;
+      });
+      const entries = Object.entries(counts);
+      if (entries.length === 0) {
+        return { matching: 0, total, status: 'NO DATA' };
+      }
+      entries.sort((a, b) => b[1] - a[1]);
+      const matching = entries[0][1];
+      return { matching, total, status: matching === total ? 'PASS' : 'FAILURE' };
     }
 
     function renderResults(data) {
@@ -150,6 +205,13 @@
         </div>`;
 
       CATEGORIES.forEach(cat => {
+        const { matching, total, status } = computeConsensus(sources, cat.key);
+        const badgeClass = status === 'PASS'
+          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+          : status === 'NO DATA'
+            ? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+            : 'bg-red-500/10 text-red-400 border-red-500/20';
+
         const rows = sources.map(s => {
           const value = s[cat.key];
           const hasError = !!s.error;
@@ -176,6 +238,11 @@
               <h3 class="text-sm font-bold text-white uppercase tracking-wide">${cat.label}</h3>
             </div>
             <div class="bg-slate-800/40 rounded-xl px-4">${rows}</div>
+            <div class="flex justify-end mt-2">
+              <span class="px-2.5 py-0.5 rounded-md text-xs font-bold border ${badgeClass}">
+                VERDICT: ${matching} of ${total} — ${status}
+              </span>
+            </div>
           </div>`;
       });
 
