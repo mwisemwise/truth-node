@@ -10,7 +10,7 @@
     body { -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between p-4 md:p-6 select-none">
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between p-4 md:p-6">
 
   <!-- TOP BAR -->
   <header class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl mb-6">
@@ -43,6 +43,11 @@
         <div id="sourceCountList" class="flex flex-col gap-2 text-sm text-slate-300">
           <span class="text-slate-500">Enter a business and run the audit.</span>
         </div>
+        <button id="copyResultsBtn" onclick="copyResults()" disabled
+                class="mt-4 w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-200 font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-xs">
+          <i class="fa-solid fa-copy"></i>
+          <span id="copyResultsBtnLabel">Copy Results</span>
+        </button>
       </div>
 
       <div class="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-5 shadow-xl flex items-start gap-4">
@@ -101,6 +106,8 @@
     const SOURCE_LABELS = ['Google Maps', 'Yelp', 'Facebook', 'Better Business Bureau', 'Foursquare'];
 
     let loadingInterval = null;
+    let lastAuditData = null;
+    let lastAuditQuery = { name: '', town: '' };
 
     function buildLoadingMessages() {
       const messages = CATEGORIES.map(c => c.checkingText + '...');
@@ -136,6 +143,7 @@
       const name = document.getElementById('bizName').value.trim();
       const town = document.getElementById('bizTown').value.trim();
       if (!name) return;
+      lastAuditQuery = { name, town };
 
       const container = document.getElementById('categoryContainer');
       const countList = document.getElementById('sourceCountList');
@@ -157,6 +165,8 @@
 
         const data = await response.json();
         stopLoadingAnimation();
+        lastAuditData = data;
+        document.getElementById('copyResultsBtn').disabled = false;
         renderResults(data);
 
       } catch (err) {
@@ -262,7 +272,63 @@
       div.innerText = str ?? '';
       return div.innerHTML;
     }
+
+    // Builds a clean plain-text version of the last audit — no HTML, no
+    // styling — for pasting into a text message, email, or notes app.
+    function buildPlainTextReport() {
+      if (!lastAuditData) return '';
+      const sources = lastAuditData.sources || [];
+      const ghosts = lastAuditData.ghosts || [];
+      const lines = [];
+
+      const label = [lastAuditQuery.name, lastAuditQuery.town].filter(Boolean).join(' — ');
+      lines.push(`SYNERGY AUDIT: ${label}`);
+      lines.push(`Sources queried: ${sources.length}`);
+      lines.push('');
+
+      CATEGORIES.forEach(cat => {
+        const { matching, total, status } = computeConsensus(sources, cat.key);
+        lines.push(cat.label.toUpperCase());
+        sources.forEach(s => {
+          const value = s.error ? `Lookup failed: ${s.error}` : (s[cat.key] || 'Not found here');
+          lines.push(`  ${s.source}: ${value}`);
+        });
+        lines.push(`  VERDICT: ${matching} of ${total} — ${status}`);
+        lines.push('');
+      });
+
+      lines.push(ghosts.length > 0
+        ? `GHOST LISTINGS: ${ghosts.length} found — ${ghosts.map(g => g.address).join('; ')}`
+        : 'GHOST LISTINGS: none detected');
+
+      return lines.join('\n');
+    }
+
+    async function copyResults() {
+      const text = buildPlainTextReport();
+      if (!text) return;
+
+      const btnLabel = document.getElementById('copyResultsBtnLabel');
+
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (err) {
+        // Fallback for older/embedded browsers without Clipboard API access
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try { document.execCommand('copy'); } catch (e) { /* nothing more to do */ }
+        document.body.removeChild(textarea);
+      }
+
+      const original = btnLabel.innerText;
+      btnLabel.innerText = 'Copied!';
+      setTimeout(() => { btnLabel.innerText = original; }, 1500);
+    }
   </script>
 </body>
 </html>
-
