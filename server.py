@@ -44,6 +44,22 @@ def town_in_address(town, address):
     return any(w in address.lower() for w in town_words)
 
 
+def best_match_by_name(items, name, title_field="title"):
+    """Same relevance-filter idea as the directory sites: only accept a
+    map-engine result if the business name actually overlaps the query,
+    so we don't attach a same-named business from somewhere else."""
+    if not items:
+        return None
+    name_words = [w.strip(",.") for w in name.lower().split() if len(w.strip(",.")) > 1]
+    if not name_words:
+        return items[0]
+    for item in items:
+        title = (item.get(title_field) or "").lower()
+        if any(w in title for w in name_words):
+            return item
+    return None
+
+
 @app.route("/")
 def index():
     return send_from_directory(".", "auditapp.html")
@@ -65,6 +81,7 @@ def audit():
     sources = []
     ghosts = []
     verified_business = None
+    lat, lng = None, None  # populated from the Google Maps match, feeds Bing/Apple below
 
     # 1. Google Maps — primary source + duplicate/ghost detection
     try:
@@ -79,6 +96,10 @@ def audit():
         if local_results:
             top = local_results[0]
             place_id = top.get("place_id", "")
+
+            gps = top.get("gps_coordinates") or {}
+            lat, lng = gps.get("latitude"), gps.get("longitude")
+
             sources.append({
                 "source": "Google Maps",
                 "icon": "fa-brands fa-google",
@@ -143,6 +164,76 @@ def audit():
                 "name": None, "address": None, "phone": None, "email": None, "url": None,
                 "error": str(e),
             })
+
+    # 3. Bing Maps — real map engine, needs coordinates (not just a town string)
+    if lat and lng:
+        try:
+            res = serp_get({"engine": "bing_maps", "q": full_query, "cp": f"{lat}~{lng}"})
+            local = res.get("local_results") or [{}]
+            items = local[0].get("items", []) if isinstance(local, list) else []
+            match = best_match_by_name(items, name)
+            if match:
+                sources.append({
+                    "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
+                    "name": match.get("title"),
+                    "address": match.get("address"),
+                    "phone": match.get("phone"),
+                    "email": None,
+                    "url": match.get("url") or match.get("website"),
+                })
+            else:
+                sources.append({
+                    "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
+                    "name": None, "address": None, "phone": None, "email": None, "url": None,
+                })
+        except Exception as e:
+            sources.append({
+                "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
+                "name": None, "address": None, "phone": None, "email": None, "url": None,
+                "error": str(e),
+            })
+    else:
+        sources.append({
+            "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
+            "name": None, "address": None, "phone": None, "email": None, "url": None,
+            "error": "No coordinates from Google Maps match — skipped",
+        })
+
+    # 4. Apple Maps — same deal, uses `query` + `center` param names instead of q/cp
+    if lat and lng:
+        try:
+            res = serp_get({"engine": "apple_maps", "query": full_query, "center": f"{lat},{lng}"})
+            items = res.get("local_results", [])
+            match = best_match_by_name(items, name)
+            if match:
+                sources.append({
+                    "source": "Apple Maps", "icon": "fa-brands fa-apple",
+                    "name": match.get("title"),
+                    # NOTE: field name unverified against a live payload — check
+                    # a real /search.json?engine=apple_maps response and adjust
+                    # if it's actually "formatted_address" or nested differently.
+                    "address": match.get("address"),
+                    "phone": match.get("phone") or match.get("phone_number"),
+                    "email": None,
+                    "url": match.get("url") or match.get("website"),
+                })
+            else:
+                sources.append({
+                    "source": "Apple Maps", "icon": "fa-brands fa-apple",
+                    "name": None, "address": None, "phone": None, "email": None, "url": None,
+                })
+        except Exception as e:
+            sources.append({
+                "source": "Apple Maps", "icon": "fa-brands fa-apple",
+                "name": None, "address": None, "phone": None, "email": None, "url": None,
+                "error": str(e),
+            })
+    else:
+        sources.append({
+            "source": "Apple Maps", "icon": "fa-brands fa-apple",
+            "name": None, "address": None, "phone": None, "email": None, "url": None,
+            "error": "No coordinates from Google Maps match — skipped",
+        })
 
     return jsonify({"sources": sources, "ghosts": ghosts, "verified_business": verified_business})
 
