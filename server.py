@@ -135,10 +135,10 @@ def audit():
     # match each source's label.lower(). If the client doesn't send this
     # (older callers), fall back to querying everything, as before.
     raw_sources = data.get("sources")
-    enabled = set(s.strip().lower() for s in raw_sources) if isinstance(raw_sources, list) else None
+    enabled = set(s.strip().lower() for s in raw_sources) if isinstance(raw_sources, list) else set()
 
     def is_enabled(label):
-        return enabled is None or label.lower() in enabled
+        return label.lower() in enabled
 
     full_query = f"{name} {town}".strip() if town else name
     sources = []
@@ -146,60 +146,60 @@ def audit():
     verified_business = None
     lat, lng = None, None  # populated from the Google Maps match, feeds Bing/Apple below
 
-    # 1. Google Maps — primary source + duplicate/ghost detection. Always
-    # queried: it's the core identity check everything else is compared
-    # against, and ghost-listing detection depends on it.
-    try:
-        res = serp_get({"engine": "google_maps", "q": full_query, "type": "search"})
-        local_results = res.get("local_results") or ([res["place_results"]] if "place_results" in res else [])
+    # 1. Google Maps — queried only when enabled. If disabled, it is not
+    # queried and does not appear in the response.
+    if is_enabled("Google Maps"):
+        try:
+            res = serp_get({"engine": "google_maps", "q": full_query, "type": "search"})
+            local_results = res.get("local_results") or ([res["place_results"]] if "place_results" in res else [])
 
-        if town and local_results:
-            filtered = [r for r in local_results if town_in_address(town, r.get("address", ""))]
-            if filtered:
-                local_results = filtered
+            if town and local_results:
+                filtered = [r for r in local_results if town_in_address(town, r.get("address", ""))]
+                if filtered:
+                    local_results = filtered
 
-        if local_results:
-            top = local_results[0]
-            place_id = top.get("place_id", "")
+            if local_results:
+                top = local_results[0]
+                place_id = top.get("place_id", "")
 
-            gps = top.get("gps_coordinates") or {}
-            lat, lng = gps.get("latitude"), gps.get("longitude")
+                gps = top.get("gps_coordinates") or {}
+                lat, lng = gps.get("latitude"), gps.get("longitude")
 
-            sources.append({
-                "source": "Google Maps",
-                "icon": "fa-brands fa-google",
-                "name": top.get("title") or None,
-                "address": top.get("address") or None,
-                "phone": top.get("phone") or None,
-                "hours": google_maps_hours(top),
-                "email": None,
-                "url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else None,
-            })
-            verified_business = {
-                "title": top.get("title", ""),
-                "address": top.get("address") or "Not publicly listed",
-                "phone": top.get("phone") or "Not listed",
-                "rating": top.get("rating", "N/A"),
-                "reviews": top.get("reviews", 0),
-                "map_url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else "#",
-            }
-
-            for dup in local_results[1:1 + MAX_GHOST_LISTINGS]:
-                ghosts.append({
-                    "name": dup.get("title", "Unknown"),
-                    "address": dup.get("address", "unknown address"),
+                sources.append({
+                    "source": "Google Maps",
+                    "icon": "fa-brands fa-google",
+                    "name": top.get("title") or None,
+                    "address": top.get("address") or None,
+                    "phone": top.get("phone") or None,
+                    "hours": google_maps_hours(top),
+                    "email": None,
+                    "url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else None,
                 })
-        else:
+                verified_business = {
+                    "title": top.get("title", ""),
+                    "address": top.get("address") or "Not publicly listed",
+                    "phone": top.get("phone") or "Not listed",
+                    "rating": top.get("rating", "N/A"),
+                    "reviews": top.get("reviews", 0),
+                    "map_url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else "#",
+                }
+
+                for dup in local_results[1:1 + MAX_GHOST_LISTINGS]:
+                    ghosts.append({
+                        "name": dup.get("title", "Unknown"),
+                        "address": dup.get("address", "unknown address"),
+                    })
+            else:
+                sources.append({
+                    "source": "Google Maps", "icon": "fa-brands fa-google",
+                    "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
+                })
+        except Exception as e:
             sources.append({
                 "source": "Google Maps", "icon": "fa-brands fa-google",
                 "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
+                "error": str(e),
             })
-    except Exception as e:
-        sources.append({
-            "source": "Google Maps", "icon": "fa-brands fa-google",
-            "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-            "error": str(e),
-        })
 
     # 2. Directory sites — unquoted, broad search so we actually find the
     # listing. Only the address/phone/hours SHAPES are pulled out of the raw
