@@ -8,6 +8,13 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body { -webkit-tap-highlight-color: transparent; }
+    .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: #334155; border-radius: 999px; transition: .2s; }
+    .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: .2s; }
+    .toggle-switch input:checked + .toggle-slider { background: #2563eb; }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+    .toggle-switch input:disabled + .toggle-slider { opacity: .35; cursor: not-allowed; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between p-4 md:p-6">
@@ -34,43 +41,32 @@
     </form>
   </header>
 
-  <!-- MAIN DISPLAY -->
-  <main class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-
-    <div class="lg:col-span-1 flex flex-col gap-6">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-3 block">Sources Checked</span>
-        <div id="sourceCountList" class="flex flex-col gap-2 text-sm text-slate-300">
-          <span class="text-slate-500">Enter a business and run the audit.</span>
-        </div>
-        <button id="copyResultsBtn" onclick="copyResults()" disabled
-                class="mt-4 w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-200 font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-xs">
-          <i class="fa-solid fa-copy"></i>
-          <span id="copyResultsBtnLabel">Copy Results</span>
-        </button>
-      </div>
-
-      <div class="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-5 shadow-xl flex items-start gap-4">
-        <div class="p-3 bg-purple-500/20 text-purple-400 rounded-xl">
-          <i class="fa-solid fa-ghost text-2xl"></i>
-        </div>
-        <div>
-          <h3 class="text-base font-bold text-purple-200">Ghost Profile Monitor</h3>
-          <p id="ghostAlertText" class="text-xs text-purple-300/80 mt-1 leading-relaxed">
-            Flags duplicate or unmanaged listings sitting alongside the main one.
-          </p>
-        </div>
-      </div>
+  <!-- SEARCH ENGINES TOGGLE BAR -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl mb-6">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mr-2">Search Engines</span>
+      <div id="engineToggles" class="flex flex-wrap items-center gap-x-6 gap-y-3"></div>
     </div>
+  </div>
 
-    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between gap-6">
+  <!-- MAIN DISPLAY -->
+  <main class="flex-1 mb-6">
+
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between gap-6">
       <div>
         <div class="flex items-center justify-between pb-4 border-b border-slate-800">
           <h2 class="text-lg font-bold text-white flex items-center gap-2">
             <i class="fa-solid fa-network-wired text-blue-500"></i>
             What Each Source Reports
           </h2>
-          <span class="text-xs text-slate-400">Live</span>
+          <div class="flex items-center gap-3">
+            <button id="copyResultsBtn" onclick="copyResults()" disabled
+                    class="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-200 font-medium py-1.5 px-3 rounded-lg flex items-center justify-center gap-2 text-xs">
+              <i class="fa-solid fa-copy"></i>
+              <span id="copyResultsBtnLabel">Copy Results</span>
+            </button>
+            <span class="text-xs text-slate-400">Live</span>
+          </div>
         </div>
 
         <div id="categoryContainer" class="mt-4 flex flex-col gap-6">
@@ -98,20 +94,66 @@
       { key: 'address', label: 'Address', icon: 'fa-solid fa-location-dot', checkingText: 'Checking listed addresses' },
       { key: 'phone', label: 'Phone', icon: 'fa-solid fa-phone', checkingText: 'Checking phone numbers' },
       { key: 'hours', label: 'Hours', icon: 'fa-solid fa-clock', checkingText: 'Checking posted hours' },
-      { key: 'email', label: 'Email', icon: 'fa-solid fa-envelope', checkingText: 'Checking listed emails' },
     ];
 
-    // Sources we actually query right now. Kept as one list so the loading
-    // messages never claim to check a source the backend doesn't call.
-    const SOURCE_LABELS = ['Google Maps', 'Yelp', 'Facebook', 'Better Business Bureau', 'Foursquare'];
+    // Every engine shown in the toggle bar. `wired: true` = actually queried
+    // by the backend right now; `wired: false` = shown but disabled/off,
+    // since server.py doesn't call these sources yet.
+    const ENGINES = [
+      { match: 'google maps', label: 'Google Maps', icon: 'fa-brands fa-google', color: '#4285F4', wired: true },
+      { match: 'yelp',        label: 'Yelp',        icon: 'fa-brands fa-yelp',   color: '#FF1A1A', wired: true },
+      { match: 'facebook',    label: 'Facebook',    icon: 'fa-brands fa-facebook', color: '#1877F2', wired: true },
+      { match: 'bing places', label: 'Bing Places', icon: 'fa-brands fa-microsoft', color: '#94a3b8', wired: false },
+      { match: 'apple maps',  label: 'Apple Maps',  icon: 'fa-brands fa-apple', color: '#e2e8f0', wired: false },
+      { match: 'bbb',         label: 'BBB',         icon: 'fa-solid fa-shield-halved', color: '#94a3b8', wired: true },
+      { match: 'foursquare',  label: 'Foursquare',  icon: 'fa-solid fa-location-crosshairs', color: '#F94877', wired: true },
+    ];
+
+    // Which engines are currently toggled ON (by their `match` key). Starts
+    // with every wired engine on, unwired ones off (they're placeholders).
+    const engineState = {};
+    ENGINES.forEach(e => { engineState[e.match] = e.wired; });
 
     let loadingInterval = null;
     let lastAuditData = null;
     let lastAuditQuery = { name: '', town: '' };
 
+    function renderEngineToggles() {
+      const wrap = document.getElementById('engineToggles');
+      wrap.innerHTML = ENGINES.map(e => `
+        <label class="flex items-center gap-2 ${e.wired ? 'cursor-pointer' : 'cursor-not-allowed'}">
+          <span class="toggle-switch">
+            <input type="checkbox" data-engine="${e.match}" ${engineState[e.match] ? 'checked' : ''} ${e.wired ? '' : 'disabled'}>
+            <span class="toggle-slider"></span>
+          </span>
+          <i class="${e.icon} text-sm" style="color:${e.color}"></i>
+          <span class="text-sm ${e.wired ? 'text-slate-200' : 'text-slate-500'}">${e.label}</span>
+        </label>`).join('');
+
+      wrap.querySelectorAll('input[data-engine]').forEach(input => {
+        input.addEventListener('change', () => {
+          engineState[input.dataset.engine] = input.checked;
+          if (lastAuditData) renderResults(lastAuditData);
+        });
+      });
+    }
+    renderEngineToggles();
+
+    function engineMeta(sourceLabel) {
+      const norm = (sourceLabel || '').toLowerCase();
+      return ENGINES.find(e => norm.includes(e.match)) || null;
+    }
+
+    function activeSources(sources) {
+      return sources.filter(s => {
+        const meta = engineMeta(s.source);
+        return meta ? engineState[meta.match] : true;
+      });
+    }
+
     function buildLoadingMessages() {
       const messages = CATEGORIES.map(c => c.checkingText + '...');
-      SOURCE_LABELS.forEach(s => messages.push(`Evaluating trust signals for ${s}...`));
+      ENGINES.filter(e => e.wired && engineState[e.match]).forEach(e => messages.push(`Evaluating trust signals for ${e.label}...`));
       return messages;
     }
 
@@ -146,10 +188,8 @@
       lastAuditQuery = { name, town };
 
       const container = document.getElementById('categoryContainer');
-      const countList = document.getElementById('sourceCountList');
 
       startLoadingAnimation(container);
-      countList.innerHTML = `<span class="text-slate-500">Searching...</span>`;
 
       try {
         const response = await fetch('/api/audit', {
@@ -172,7 +212,6 @@
       } catch (err) {
         stopLoadingAnimation();
         container.innerHTML = `<div class="py-6 text-center text-red-400">Couldn't complete the audit: ${escapeHtml(err.message)}</div>`;
-        countList.innerHTML = '';
       }
     }
 
@@ -181,7 +220,8 @@
     }
 
     // Consensus: does every source that reported a value for this field agree
-    // with the majority? X of N sources match, N = total sources queried.
+    // with the majority? X of N sources match, N = total ACTIVE (toggled-on)
+    // sources queried — this is a per-field verdict, never a per-source one.
     function computeConsensus(sources, key) {
       const total = sources.length;
       const counts = {};
@@ -198,31 +238,31 @@
       return { matching, total, status: matching === total ? 'PASS' : 'FAILURE' };
     }
 
-    // Transposed layout: one table, fields (Name/Address/Phone/Hours/Email) as
-    // rows, sources as columns. Pass/fail lives at the END of each row as a
-    // per-field consensus verdict — it is never a per-source answer.
+    // Transposed layout: one table, fields (Name/Address/Phone/Hours) as
+    // rows, sources as columns (only currently toggled-on engines). Pass/fail
+    // lives at the END of each row as a per-field consensus verdict.
     function renderResults(data) {
       const container = document.getElementById('categoryContainer');
-      const countList = document.getElementById('sourceCountList');
       container.innerHTML = '';
 
-      const sources = data.sources || [];
-      const foundCount = sources.filter(s => s.name || s.address || s.phone || s.email).length;
+      const sources = activeSources(data.sources || []);
 
-      countList.innerHTML = `
-        <div class="flex items-center justify-between">
-          <span>Sources queried</span><span class="font-bold text-white">${sources.length}</span>
-        </div>
-        <div class="flex items-center justify-between">
-          <span>Found something</span><span class="font-bold text-white">${foundCount}</span>
-        </div>`;
+      if (sources.length === 0) {
+        container.innerHTML = `<div class="py-8 text-center text-slate-500 text-sm">No engines toggled on — flip a switch above to see results.</div>`;
+        return;
+      }
 
-      const sourceHeaders = sources.map(s => `
-        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300 whitespace-nowrap">
-          <span class="flex items-center gap-2">
-            <i class="${s.icon} text-slate-400 text-sm"></i>${escapeHtml(s.source)}
-          </span>
-        </th>`).join('');
+      const sourceHeaders = sources.map(s => {
+        const meta = engineMeta(s.source);
+        const icon = meta ? meta.icon : 'fa-solid fa-globe';
+        const color = meta ? meta.color : '#94a3b8';
+        return `
+          <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300 whitespace-nowrap">
+            <span class="flex items-center gap-2">
+              <i class="${icon} text-sm" style="color:${color}"></i>${escapeHtml(s.source)}
+            </span>
+          </th>`;
+      }).join('');
 
       const bodyRows = CATEGORIES.map(cat => {
         const { matching, total, status } = computeConsensus(sources, cat.key);
@@ -272,12 +312,6 @@
             </tbody>
           </table>
         </div>`;
-
-      const ghosts = data.ghosts || [];
-      const ghostAlert = document.getElementById('ghostAlertText');
-      ghostAlert.innerText = ghosts.length > 0
-        ? `${ghosts.length} unmanaged duplicate listing(s) found: ${ghosts.map(g => g.address).join('; ')}`
-        : `No duplicate or ghost listings detected.`;
     }
 
     function showLockNotice() {
@@ -294,8 +328,7 @@
     // styling — for pasting into a text message, email, or notes app.
     function buildPlainTextReport() {
       if (!lastAuditData) return '';
-      const sources = lastAuditData.sources || [];
-      const ghosts = lastAuditData.ghosts || [];
+      const sources = activeSources(lastAuditData.sources || []);
       const lines = [];
 
       const label = [lastAuditQuery.name, lastAuditQuery.town].filter(Boolean).join(' — ');
@@ -313,339 +346,6 @@
         lines.push(`  VERDICT: ${matching} of ${total} — ${status}`);
         lines.push('');
       });
-
-      lines.push(ghosts.length > 0
-        ? `GHOST LISTINGS: ${ghosts.length} found — ${ghosts.map(g => g.address).join('; ')}`
-        : 'GHOST LISTINGS: none detected');
-
-      return lines.join('\n');
-    }
-
-    async function copyResults() {
-      const text = buildPlainTextReport();
-      if (!text) return;
-
-      const btnLabel = document.getElementById('copyResultsBtnLabel');
-
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch (err) {
-        // Fallback for older/embedded browsers without Clipboard API access
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        try { document.execCommand('copy'); } catch (e) { /* nothing more to do */ }
-        document.body.removeChild(textarea);
-      }
-
-      const original = btnLabel.innerText;
-      btnLabel.innerText = 'Copied!';
-      setTimeout(() => { btnLabel.innerText = original; }, 1500);
-    }
-  </script>
-</body>
-</html>
-ive Audit</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    body { -webkit-tap-highlight-color: transparent; }
-  </style>
-</head>
-<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between p-4 md:p-6">
-
-  <!-- TOP BAR -->
-  <header class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl mb-6">
-    <form id="auditForm" autocomplete="off" class="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div>
-        <label class="block text-xs font-semibold text-slate-400 mb-1 ml-1">Business Name <span class="text-red-400">*</span></label>
-        <input type="text" id="bizName" required autocomplete="off" placeholder="e.g. Bob's Plumbing"
-               class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-400 mb-1 ml-1">City / State <span class="text-slate-500">(optional)</span></label>
-        <input type="text" id="bizTown" autocomplete="off" placeholder="e.g. Branson, MO"
-               class="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
-      </div>
-      <div class="flex items-end">
-        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 transition-all text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 text-sm h-[42px]">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <span>Run Live Audit</span>
-        </button>
-      </div>
-    </form>
-  </header>
-
-  <!-- MAIN DISPLAY -->
-  <main class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-
-    <div class="lg:col-span-1 flex flex-col gap-6">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-3 block">Sources Checked</span>
-        <div id="sourceCountList" class="flex flex-col gap-2 text-sm text-slate-300">
-          <span class="text-slate-500">Enter a business and run the audit.</span>
-        </div>
-        <button id="copyResultsBtn" onclick="copyResults()" disabled
-                class="mt-4 w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-200 font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-xs">
-          <i class="fa-solid fa-copy"></i>
-          <span id="copyResultsBtnLabel">Copy Results</span>
-        </button>
-      </div>
-
-      <div class="bg-purple-950/40 border border-purple-500/30 rounded-2xl p-5 shadow-xl flex items-start gap-4">
-        <div class="p-3 bg-purple-500/20 text-purple-400 rounded-xl">
-          <i class="fa-solid fa-ghost text-2xl"></i>
-        </div>
-        <div>
-          <h3 class="text-base font-bold text-purple-200">Ghost Profile Monitor</h3>
-          <p id="ghostAlertText" class="text-xs text-purple-300/80 mt-1 leading-relaxed">
-            Flags duplicate or unmanaged listings sitting alongside the main one.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between gap-6">
-      <div>
-        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-          <h2 class="text-lg font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-network-wired text-blue-500"></i>
-            What Each Source Reports
-          </h2>
-          <span class="text-xs text-slate-400">Live</span>
-        </div>
-
-        <div id="categoryContainer" class="mt-4 flex flex-col gap-6">
-          <div class="py-12 text-center text-slate-500 text-sm">
-            <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block"></i>
-            Enter a business above and run the audit.
-          </div>
-        </div>
-      </div>
-
-      <button onclick="showLockNotice()" class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-98 transition-all text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-3 text-lg">
-        <i class="fa-solid fa-shield-halved text-xl"></i>
-        <span>Lock Certified Record & Clear Ghost Profiles</span>
-      </button>
-    </div>
-
-  </main>
-
-  <script>
-    const form = document.getElementById('auditForm');
-    form.addEventListener('submit', runAudit);
-
-    const CATEGORIES = [
-      { key: 'name', label: 'Business Name', icon: 'fa-solid fa-signature', checkingText: 'Checking name consistency' },
-      { key: 'address', label: 'Address', icon: 'fa-solid fa-location-dot', checkingText: 'Checking listed addresses' },
-      { key: 'phone', label: 'Phone', icon: 'fa-solid fa-phone', checkingText: 'Checking phone numbers' },
-      { key: 'hours', label: 'Hours', icon: 'fa-solid fa-clock', checkingText: 'Checking posted hours' },
-      { key: 'email', label: 'Email', icon: 'fa-solid fa-envelope', checkingText: 'Checking listed emails' },
-    ];
-
-    // Sources we actually query right now. Kept as one list so the loading
-    // messages never claim to check a source the backend doesn't call.
-    const SOURCE_LABELS = ['Google Maps', 'Yelp', 'Facebook', 'Better Business Bureau', 'Foursquare'];
-
-    let loadingInterval = null;
-    let lastAuditData = null;
-    let lastAuditQuery = { name: '', town: '' };
-
-    function buildLoadingMessages() {
-      const messages = CATEGORIES.map(c => c.checkingText + '...');
-      SOURCE_LABELS.forEach(s => messages.push(`Evaluating trust signals for ${s}...`));
-      return messages;
-    }
-
-    function startLoadingAnimation(container) {
-      const messages = buildLoadingMessages();
-      let i = 0;
-      container.innerHTML = `
-        <div class="py-12 text-center text-slate-400">
-          <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-500 mb-3 block"></i>
-          <span id="loadingText">${escapeHtml(messages[0])}</span>
-        </div>`;
-      loadingInterval = setInterval(() => {
-        i = (i + 1) % messages.length;
-        const el = document.getElementById('loadingText');
-        if (el) el.innerText = messages[i];
-      }, 850);
-    }
-
-    function stopLoadingAnimation() {
-      if (loadingInterval) {
-        clearInterval(loadingInterval);
-        loadingInterval = null;
-      }
-    }
-
-    async function runAudit(e) {
-      if (e) e.preventDefault();
-
-      const name = document.getElementById('bizName').value.trim();
-      const town = document.getElementById('bizTown').value.trim();
-      if (!name) return;
-      lastAuditQuery = { name, town };
-
-      const container = document.getElementById('categoryContainer');
-      const countList = document.getElementById('sourceCountList');
-
-      startLoadingAnimation(container);
-      countList.innerHTML = `<span class="text-slate-500">Searching...</span>`;
-
-      try {
-        const response = await fetch('/api/audit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, town })
-        });
-
-        if (!response.ok) {
-          const errBody = await response.json().catch(() => ({}));
-          throw new Error(errBody.error || `Server error (${response.status})`);
-        }
-
-        const data = await response.json();
-        stopLoadingAnimation();
-        lastAuditData = data;
-        document.getElementById('copyResultsBtn').disabled = false;
-        renderResults(data);
-
-      } catch (err) {
-        stopLoadingAnimation();
-        container.innerHTML = `<div class="py-6 text-center text-red-400">Couldn't complete the audit: ${escapeHtml(err.message)}</div>`;
-        countList.innerHTML = '';
-      }
-    }
-
-    function normalize(val) {
-      return (val || '').toString().trim().toLowerCase();
-    }
-
-    // Consensus: does every source that reported a value for this field agree
-    // with the majority? X of N sources match, N = total sources queried.
-    function computeConsensus(sources, key) {
-      const total = sources.length;
-      const counts = {};
-      sources.forEach(s => {
-        const norm = normalize(s[key]);
-        if (norm) counts[norm] = (counts[norm] || 0) + 1;
-      });
-      const entries = Object.entries(counts);
-      if (entries.length === 0) {
-        return { matching: 0, total, status: 'NO DATA' };
-      }
-      entries.sort((a, b) => b[1] - a[1]);
-      const matching = entries[0][1];
-      return { matching, total, status: matching === total ? 'PASS' : 'FAILURE' };
-    }
-
-    function renderResults(data) {
-      const container = document.getElementById('categoryContainer');
-      const countList = document.getElementById('sourceCountList');
-      container.innerHTML = '';
-
-      const sources = data.sources || [];
-      const foundCount = sources.filter(s => s.name || s.address || s.phone || s.email).length;
-
-      countList.innerHTML = `
-        <div class="flex items-center justify-between">
-          <span>Sources queried</span><span class="font-bold text-white">${sources.length}</span>
-        </div>
-        <div class="flex items-center justify-between">
-          <span>Found something</span><span class="font-bold text-white">${foundCount}</span>
-        </div>`;
-
-      CATEGORIES.forEach(cat => {
-        const { matching, total, status } = computeConsensus(sources, cat.key);
-        const badgeClass = status === 'PASS'
-          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-          : status === 'NO DATA'
-            ? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-            : 'bg-red-500/10 text-red-400 border-red-500/20';
-
-        const rows = sources.map(s => {
-          const value = s[cat.key];
-          const hasError = !!s.error;
-          const displayValue = hasError
-            ? `<span class="text-red-400">Lookup failed: ${escapeHtml(s.error)}</span>`
-            : value
-              ? `<span class="text-slate-100">${escapeHtml(value)}</span>`
-              : `<span class="text-slate-500 italic">Not found here</span>`;
-
-          return `
-            <div class="grid grid-cols-[10rem_1fr] gap-4 items-start py-2.5 border-b border-slate-800/60 last:border-b-0">
-              <div class="flex items-center gap-2.5">
-                <i class="${s.icon} text-slate-400 w-4 text-center text-sm"></i>
-                <span class="text-sm font-medium text-slate-300">${escapeHtml(s.source)}</span>
-              </div>
-              <div class="text-sm text-left">${displayValue}</div>
-            </div>`;
-        }).join('');
-
-        container.innerHTML += `
-          <div>
-            <div class="flex items-center gap-2 mb-1">
-              <i class="${cat.icon} text-blue-500 text-sm"></i>
-              <h3 class="text-sm font-bold text-white uppercase tracking-wide">${cat.label}</h3>
-            </div>
-            <div class="bg-slate-800/40 rounded-xl px-4">${rows}</div>
-            <div class="flex justify-end mt-2">
-              <span class="px-2.5 py-0.5 rounded-md text-xs font-bold border ${badgeClass}">
-                VERDICT: ${matching} of ${total} — ${status}
-              </span>
-            </div>
-          </div>`;
-      });
-
-      const ghosts = data.ghosts || [];
-      const ghostAlert = document.getElementById('ghostAlertText');
-      ghostAlert.innerText = ghosts.length > 0
-        ? `${ghosts.length} unmanaged duplicate listing(s) found: ${ghosts.map(g => g.address).join('; ')}`
-        : `No duplicate or ghost listings detected.`;
-    }
-
-    function showLockNotice() {
-      alert("Certified Record locking isn't built yet — that's the next phase (the actual hosted Synergy page). This button is a placeholder for the pitch, not a working feature.");
-    }
-
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.innerText = str ?? '';
-      return div.innerHTML;
-    }
-
-    // Builds a clean plain-text version of the last audit — no HTML, no
-    // styling — for pasting into a text message, email, or notes app.
-    function buildPlainTextReport() {
-      if (!lastAuditData) return '';
-      const sources = lastAuditData.sources || [];
-      const ghosts = lastAuditData.ghosts || [];
-      const lines = [];
-
-      const label = [lastAuditQuery.name, lastAuditQuery.town].filter(Boolean).join(' — ');
-      lines.push(`SYNERGY AUDIT: ${label}`);
-      lines.push(`Sources queried: ${sources.length}`);
-      lines.push('');
-
-      CATEGORIES.forEach(cat => {
-        const { matching, total, status } = computeConsensus(sources, cat.key);
-        lines.push(cat.label.toUpperCase());
-        sources.forEach(s => {
-          const value = s.error ? `Lookup failed: ${s.error}` : (s[cat.key] || 'Not found here');
-          lines.push(`  ${s.source}: ${value}`);
-        });
-        lines.push(`  VERDICT: ${matching} of ${total} — ${status}`);
-        lines.push('');
-      });
-
-      lines.push(ghosts.length > 0
-        ? `GHOST LISTINGS: ${ghosts.length} found — ${ghosts.map(g => g.address).join('; ')}`
-        : 'GHOST LISTINGS: none detected');
 
       return lines.join('\n');
     }
