@@ -176,12 +176,12 @@ def audit():
                     "url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else None,
                 })
                 verified_business = {
-                    "title": top.get("title", ""),
-                    "address": top.get("address") or "Not publicly listed",
-                    "phone": top.get("phone") or "Not listed",
-                    "rating": top.get("rating", "N/A"),
-                    "reviews": top.get("reviews", 0),
-                    "map_url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else "#",
+                    "title": top.get("title"),
+                    "address": top.get("address"),
+                    "phone": top.get("phone"),
+                    "rating": top.get("rating"),
+                    "reviews": top.get("reviews"),
+                    "map_url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else None,
                 }
 
                 for dup in local_results[1:1 + MAX_GHOST_LISTINGS]:
