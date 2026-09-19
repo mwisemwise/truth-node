@@ -49,59 +49,26 @@
     </div>
   </div>
 
-  <!-- MAIN DISPLAY -->
+  <!-- RESULTS -->
   <main class="flex-1 mb-6">
-
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between gap-6">
-      <div>
-        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-          <h2 class="text-lg font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-network-wired text-blue-500"></i>
-            What Each Source Reports
-          </h2>
-          <div class="flex items-center gap-3">
-            <button id="copyResultsBtn" onclick="copyResults()" disabled
-                    class="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-slate-200 font-medium py-1.5 px-3 rounded-lg flex items-center justify-center gap-2 text-xs">
-              <i class="fa-solid fa-copy"></i>
-              <span id="copyResultsBtnLabel">Copy Results</span>
-            </button>
-            <span class="text-xs text-slate-400">Live</span>
-          </div>
-        </div>
-
-        <div id="categoryContainer" class="mt-4 flex flex-col gap-6">
-          <div class="py-12 text-center text-slate-500 text-sm">
-            <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block"></i>
-            Enter a business above and run the audit.
-          </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+      <div id="resultsContainer">
+        <div class="py-12 text-center text-slate-500 text-sm">
+          <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block"></i>
+          Enter a business above and run the audit.
         </div>
       </div>
-
-      <button onclick="showLockNotice()" class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-98 transition-all text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-3 text-lg">
-        <i class="fa-solid fa-shield-halved text-xl"></i>
-        <span>Lock Certified Record & Clear Ghost Profiles</span>
-      </button>
     </div>
-
   </main>
 
   <script>
     const form = document.getElementById('auditForm');
     form.addEventListener('submit', runAudit);
 
-    const CATEGORIES = [
-      { key: 'name', label: 'Business Name', icon: 'fa-solid fa-signature', checkingText: 'Checking name consistency' },
-      { key: 'address', label: 'Address', icon: 'fa-solid fa-location-dot', checkingText: 'Checking listed addresses' },
-      { key: 'phone', label: 'Phone', icon: 'fa-solid fa-phone', checkingText: 'Checking phone numbers' },
-      { key: 'hours', label: 'Hours', icon: 'fa-solid fa-clock', checkingText: 'Checking posted hours' },
-    ];
-
     // Every engine in the toggle bar. `match` is the exact lowercase label
-    // the backend uses in its `source` field (server.py's DIRECTORY_SITES /
-    // hardcoded source names) — it MUST match exactly, or a source silently
-    // falls through unmatched. All seven are actually queried by the backend
-    // now. Google Maps is locked ON: it's the core identity check everything
-    // else is compared against, and ghost-listing detection needs it.
+    // the backend uses in its `source` field — must match exactly, or a
+    // source falls through unmatched. Google Maps is locked ON: it's the
+    // core identity lookup the backend needs internally.
     const ENGINES = [
       { match: 'google maps',             label: 'Google Maps', icon: 'fa-brands fa-google', color: '#4285F4', locked: true },
       { match: 'yelp',                    label: 'Yelp',        icon: 'fa-brands fa-yelp',   color: '#FF1A1A' },
@@ -112,14 +79,10 @@
       { match: 'apple maps',              label: 'Apple Maps',  icon: 'fa-brands fa-apple', color: '#e2e8f0' },
     ];
 
-    // Which engines are currently toggled ON, keyed by `match` (which is
-    // also the exact string sent to the backend so it only queries these).
     const engineState = {};
     ENGINES.forEach(e => { engineState[e.match] = true; });
 
     let loadingInterval = null;
-    let lastAuditData = null;
-    let lastAuditQuery = { name: '', town: '' };
 
     function renderEngineToggles() {
       const wrap = document.getElementById('engineToggles');
@@ -136,24 +99,19 @@
       wrap.querySelectorAll('input[data-engine]').forEach(input => {
         input.addEventListener('change', () => {
           engineState[input.dataset.engine] = input.checked;
-          if (lastAuditData) renderResults(lastAuditData);
         });
       });
     }
     renderEngineToggles();
 
-    // Matches a backend `source` label back to its ENGINES entry. Exact
-    // match first (this should always hit, since ENGINES.match is written
-    // to equal the backend's label.lower() exactly); substring is only a
-    // fallback in case a label changes slightly server-side.
+    // Matches a backend `source` label back to its ENGINES entry.
     function engineMeta(sourceLabel) {
       const norm = (sourceLabel || '').toLowerCase().trim();
       return ENGINES.find(e => e.match === norm) || ENGINES.find(e => norm.includes(e.match)) || null;
     }
 
-    // A source we don't recognize at all defaults to HIDDEN, not shown —
-    // toggles should be a reliable on/off switch, so an unmapped source
-    // never silently sneaks into the table regardless of toggle state.
+    // A source we don't recognize defaults to HIDDEN — toggles are a
+    // reliable on/off switch, nothing unmapped sneaks into the table.
     function activeSources(sources) {
       return sources.filter(s => {
         const meta = engineMeta(s.source);
@@ -161,20 +119,13 @@
       });
     }
 
-    // Which engines are enabled right now, as the exact label strings the
-    // backend expects — sent with every audit so it only queries these.
     function enabledEngineList() {
       return ENGINES.filter(e => engineState[e.match]).map(e => e.match);
     }
 
-    function buildLoadingMessages() {
-      const messages = CATEGORIES.map(c => c.checkingText + '...');
-      ENGINES.filter(e => engineState[e.match]).forEach(e => messages.push(`Evaluating trust signals for ${e.label}...`));
-      return messages;
-    }
-
     function startLoadingAnimation(container) {
-      const messages = buildLoadingMessages();
+      const messages = ENGINES.filter(e => engineState[e.match]).map(e => `Querying ${e.label}...`);
+      if (messages.length === 0) messages.push('Querying...');
       let i = 0;
       container.innerHTML = `
         <div class="py-12 text-center text-slate-400">
@@ -201,10 +152,8 @@
       const name = document.getElementById('bizName').value.trim();
       const town = document.getElementById('bizTown').value.trim();
       if (!name) return;
-      lastAuditQuery = { name, town };
 
-      const container = document.getElementById('categoryContainer');
-
+      const container = document.getElementById('resultsContainer');
       startLoadingAnimation(container);
 
       try {
@@ -221,8 +170,6 @@
 
         const data = await response.json();
         stopLoadingAnimation();
-        lastAuditData = data;
-        document.getElementById('copyResultsBtn').disabled = false;
         renderResults(data);
 
       } catch (err) {
@@ -231,36 +178,11 @@
       }
     }
 
-    function normalize(val) {
-      return (val || '').toString().trim().toLowerCase();
-    }
-
-    // Consensus: does every source that reported a value for this field agree
-    // with the majority? X of N sources match, N = total ACTIVE (toggled-on)
-    // sources queried — this is a per-field verdict, never a per-source one.
-    function computeConsensus(sources, key) {
-      const total = sources.length;
-      const counts = {};
-      sources.forEach(s => {
-        const norm = normalize(s[key]);
-        if (norm) counts[norm] = (counts[norm] || 0) + 1;
-      });
-      const entries = Object.entries(counts);
-      if (entries.length === 0) {
-        return { matching: 0, total, status: 'NO DATA' };
-      }
-      entries.sort((a, b) => b[1] - a[1]);
-      const matching = entries[0][1];
-      return { matching, total, status: matching === total ? 'PASS' : 'FAILURE' };
-    }
-
-    // Transposed layout: one table, fields (Name/Address/Phone/Hours) as
-    // rows, sources as columns (only currently toggled-on engines). Pass/fail
-    // lives at the END of each row as a per-field consensus verdict.
+    // Exactly this and nothing else: one row per active engine, columns
+    // for Name / Address / Phone / Hours — the raw value that engine
+    // reported, or "Not found" / "Lookup failed". No verdicts, no extras.
     function renderResults(data) {
-      const container = document.getElementById('categoryContainer');
-      container.innerHTML = '';
-
+      const container = document.getElementById('resultsContainer');
       const sources = activeSources(data.sources || []);
 
       if (sources.length === 0) {
@@ -268,48 +190,29 @@
         return;
       }
 
-      const sourceHeaders = sources.map(s => {
+      const cell = (s, key) => {
+        if (s.error) return `<span class="text-red-400 text-xs">Lookup failed</span>`;
+        const value = s[key];
+        return value
+          ? `<span class="text-slate-100">${escapeHtml(value)}</span>`
+          : `<span class="text-slate-500 italic">Not found</span>`;
+      };
+
+      const rows = sources.map(s => {
         const meta = engineMeta(s.source);
         const icon = meta ? meta.icon : 'fa-solid fa-globe';
         const color = meta ? meta.color : '#94a3b8';
         return `
-          <th class="px-4 py-3 text-left text-xs font-semibold text-slate-300 whitespace-nowrap">
-            <span class="flex items-center gap-2">
-              <i class="${icon} text-sm" style="color:${color}"></i>${escapeHtml(s.source)}
-            </span>
-          </th>`;
-      }).join('');
-
-      const bodyRows = CATEGORIES.map(cat => {
-        const { matching, total, status } = computeConsensus(sources, cat.key);
-        const badgeClass = status === 'PASS'
-          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-          : status === 'NO DATA'
-            ? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-            : 'bg-red-500/10 text-red-400 border-red-500/20';
-
-        const cells = sources.map(s => {
-          const value = s[cat.key];
-          const hasError = !!s.error;
-          const displayValue = hasError
-            ? `<span class="text-red-400 text-xs">Lookup failed</span>`
-            : value
-              ? `<span class="text-slate-100">${escapeHtml(value)}</span>`
-              : `<span class="text-slate-500 italic">Not found</span>`;
-          return `<td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${displayValue}</td>`;
-        }).join('');
-
-        return `
           <tr>
-            <th class="px-4 py-3 text-left text-sm font-bold text-white uppercase tracking-wide whitespace-nowrap border-t border-slate-800/60">
-              <span class="flex items-center gap-2"><i class="${cat.icon} text-blue-500 text-xs"></i>${cat.label}</span>
-            </th>
-            ${cells}
-            <td class="px-4 py-3 border-t border-slate-800/60">
-              <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold border whitespace-nowrap ${badgeClass}">
-                ${matching} of ${total} — ${status}
+            <th class="px-4 py-3 text-left text-sm font-semibold text-white whitespace-nowrap border-t border-slate-800/60">
+              <span class="flex items-center gap-2">
+                <i class="${icon} text-sm" style="color:${color}"></i>${escapeHtml(s.source)}
               </span>
-            </td>
+            </th>
+            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'name')}</td>
+            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'address')}</td>
+            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'phone')}</td>
+            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'hours')}</td>
           </tr>`;
       }).join('');
 
@@ -318,78 +221,24 @@
           <table class="w-full border-collapse">
             <thead>
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Field</th>
-                ${sourceHeaders}
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Consensus</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Engine</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Name</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Address</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Phone</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Hours</th>
               </tr>
             </thead>
             <tbody>
-              ${bodyRows}
+              ${rows}
             </tbody>
           </table>
         </div>`;
-    }
-
-    function showLockNotice() {
-      alert("Certified Record locking isn't built yet — that's the next phase (the actual hosted Synergy page). This button is a placeholder for the pitch, not a working feature.");
     }
 
     function escapeHtml(str) {
       const div = document.createElement('div');
       div.innerText = str ?? '';
       return div.innerHTML;
-    }
-
-    // Builds a clean plain-text version of the last audit — no HTML, no
-    // styling — for pasting into a text message, email, or notes app.
-    function buildPlainTextReport() {
-      if (!lastAuditData) return '';
-      const sources = activeSources(lastAuditData.sources || []);
-      const lines = [];
-
-      const label = [lastAuditQuery.name, lastAuditQuery.town].filter(Boolean).join(' — ');
-      lines.push(`SYNERGY AUDIT: ${label}`);
-      lines.push(`Sources queried: ${sources.length}`);
-      lines.push('');
-
-      CATEGORIES.forEach(cat => {
-        const { matching, total, status } = computeConsensus(sources, cat.key);
-        lines.push(cat.label.toUpperCase());
-        sources.forEach(s => {
-          const value = s.error ? `Lookup failed: ${s.error}` : (s[cat.key] || 'Not found here');
-          lines.push(`  ${s.source}: ${value}`);
-        });
-        lines.push(`  VERDICT: ${matching} of ${total} — ${status}`);
-        lines.push('');
-      });
-
-      return lines.join('\n');
-    }
-
-    async function copyResults() {
-      const text = buildPlainTextReport();
-      if (!text) return;
-
-      const btnLabel = document.getElementById('copyResultsBtnLabel');
-
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch (err) {
-        // Fallback for older/embedded browsers without Clipboard API access
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        try { document.execCommand('copy'); } catch (e) { /* nothing more to do */ }
-        document.body.removeChild(textarea);
-      }
-
-      const original = btnLabel.innerText;
-      btnLabel.innerText = 'Copied!';
-      setTimeout(() => { btnLabel.innerText = original; }, 1500);
     }
   </script>
 </body>
