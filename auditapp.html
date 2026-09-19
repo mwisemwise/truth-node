@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Synergy — Live Audit</title>
+  <title>Truth Node — Live Audit</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -70,7 +70,7 @@
     // source falls through unmatched. Google Maps is locked ON: it's the
     // core identity lookup the backend needs internally.
     const ENGINES = [
-      { match: 'google maps',             label: 'Google Maps', icon: 'fa-brands fa-google', color: '#4285F4', locked: true },
+      { match: 'google maps',             label: 'Google Maps', icon: 'fa-brands fa-google', color: '#4285F4' },
       { match: 'yelp',                    label: 'Yelp',        icon: 'fa-brands fa-yelp',   color: '#FF1A1A' },
       { match: 'facebook',                label: 'Facebook',    icon: 'fa-brands fa-facebook', color: '#1877F2' },
       { match: 'better business bureau',  label: 'BBB',         icon: 'fa-solid fa-building-shield', color: '#94a3b8' },
@@ -79,21 +79,28 @@
       { match: 'apple maps',              label: 'Apple Maps',  icon: 'fa-brands fa-apple', color: '#e2e8f0' },
     ];
 
-    const engineState = {};
-    ENGINES.forEach(e => { engineState[e.match] = true; });
+    const engineState = {
+      'google maps': true,
+      'yelp': true,
+      'facebook': true,
+      'better business bureau': false,
+      'foursquare': false,
+      'bing maps': false,
+      'apple maps': false
+    };
 
     let loadingInterval = null;
 
     function renderEngineToggles() {
       const wrap = document.getElementById('engineToggles');
       wrap.innerHTML = ENGINES.map(e => `
-        <label class="flex items-center gap-2 ${e.locked ? 'cursor-not-allowed' : 'cursor-pointer'}">
+        <label class="flex items-center gap-2 'cursor-pointer'">
           <span class="toggle-switch">
-            <input type="checkbox" data-engine="${e.match}" ${engineState[e.match] ? 'checked' : ''} ${e.locked ? 'disabled' : ''}>
+            <input type="checkbox" data-engine="${e.match}" ${engineState[e.match] ? 'checked' : ''} ''>
             <span class="toggle-slider"></span>
           </span>
           <i class="${e.icon} text-sm" style="color:${e.color}"></i>
-          <span class="text-sm text-slate-200">${e.label}${e.locked ? ' <span class=\'text-slate-500\'>(required)</span>' : ''}</span>
+          <span class="text-sm text-slate-200">${e.label}''</span>
         </label>`).join('');
 
       wrap.querySelectorAll('input[data-engine]').forEach(input => {
@@ -178,12 +185,25 @@
       }
     }
 
-    // Exactly this and nothing else: one row per active engine, columns
-    // for Name / Address / Phone / Hours — the raw value that engine
-    // reported, or "Not found" / "Lookup failed". No verdicts, no extras.
+    function normalizeExact(value) {
+      return String(value ?? '').toLowerCase().replace(/&/g, 'and').replace(/[.,#'’]/g, '').replace(/\s+/g, ' ').trim();
+    }
+
+    function exactDataPass(source, reference) {
+      if (!source || source.error || !reference || reference.error) return false;
+      return ['name', 'address', 'phone', 'hours'].every(key => {
+        const a = normalizeExact(source[key]);
+        const b = normalizeExact(reference[key]);
+        return !!a && !!b && a === b;
+      });
+    }
+
+    // One row per active engine. Only Name / Address / Phone / Hours are displayed,
+    // followed by a deterministic exact-data PASS/FAIL verdict. Missing data is FAIL.
     function renderResults(data) {
       const container = document.getElementById('resultsContainer');
       const sources = activeSources(data.sources || []);
+      const reference = sources.find(s => engineMeta(s.source)?.match === 'google maps') || null;
 
       if (sources.length === 0) {
         container.innerHTML = `<div class="py-8 text-center text-slate-500 text-sm">No engines toggled on — flip a switch above to see results.</div>`;
@@ -213,6 +233,7 @@
             <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'address')}</td>
             <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'phone')}</td>
             <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'hours')}</td>
+            <td class="px-4 py-3 text-sm font-semibold align-top border-t border-slate-800/60"><span class="${exactDataPass(s, reference) ? 'text-emerald-400' : 'text-red-400'}">${exactDataPass(s, reference) ? 'PASS' : 'FAIL'}</span></td>
           </tr>`;
       }).join('');
 
@@ -226,6 +247,7 @@
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Address</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Phone</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Hours</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Exact Data</th>
               </tr>
             </thead>
             <tbody>
