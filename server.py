@@ -1,5 +1,6 @@
 import os
 import re
+from urllib.parse import urlparse
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -63,6 +64,24 @@ def google_maps_hours(top):
     if isinstance(oh, dict) and oh:
         parts = [f"{day[:3].capitalize()} {hrs}" for day, hrs in oh.items() if hrs]
         return "; ".join(parts) if parts else None
+    return None
+
+
+def domain_matches(url, domain):
+    """A `site:domain` Google search can silently fall back to unrelated
+    general web results when it finds nothing on that domain (Google shows
+    a "no results, here's the web instead" response). Without this check,
+    that fallback link gets treated as if it were the real listing."""
+    if not url:
+        return False
+    netloc = urlparse(url).netloc.lower()
+    return domain.lower() in netloc
+
+
+def best_directory_result(organic_results, domain):
+    for item in organic_results:
+        if domain_matches(item.get("link"), domain):
+            return item
     return None
 
 
@@ -166,8 +185,8 @@ def audit():
             q = f"site:{domain} {name} {town}".strip()
             res = serp_get({"engine": "google", "q": q})
             organic = res.get("organic_results", [])
-            if organic:
-                top = organic[0]
+            top = best_directory_result(organic, domain)
+            if top:
                 snippet = top.get("snippet", "") or ""
                 sources.append({
                     "source": label,
