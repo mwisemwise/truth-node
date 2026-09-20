@@ -19,8 +19,11 @@ DIRECTORY_SITES = [
     ("Foursquare", "foursquare.com"),
 ]
 
+# Allows 0-2 extra comma segments (suite/unit, e.g. "Ste A") between the
+# street and city/state/zip -- a plain "street, city, ST zip" snippet still
+# matches fine, but so does "street, Ste A, city, ST zip".
 ADDRESS_RE = re.compile(
-    r"\d{1,6}\s+[A-Za-z0-9.'#\- ]+?,\s*[A-Za-z .'\-]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?"
+    r"\d{1,6}\s+[A-Za-z0-9.'#\-/ ]+?(?:,\s*[A-Za-z0-9.'#\-/ ]+?){0,2},\s*[A-Za-z .'\-]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?"
 )
 PHONE_RE = re.compile(
     r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
