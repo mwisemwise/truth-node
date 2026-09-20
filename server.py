@@ -144,16 +144,18 @@ def audit():
                 top = local_results[0]
                 gps = top.get("gps_coordinates") or {}
                 lat, lng = gps.get("latitude"), gps.get("longitude")
+                place_id = top.get("place_id", "")
                 sources.append({
                     "source": "Google Maps",
                     "address": top.get("address") or None,
                     "phone": top.get("phone") or None,
                     "hours": google_maps_hours(top),
+                    "url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else None,
                 })
             else:
-                sources.append({"source": "Google Maps", "address": None, "phone": None, "hours": None})
+                sources.append({"source": "Google Maps", "address": None, "phone": None, "hours": None, "url": None})
         except Exception as e:
-            sources.append({"source": "Google Maps", "address": None, "phone": None, "hours": None, "error": str(e)})
+            sources.append({"source": "Google Maps", "address": None, "phone": None, "hours": None, "url": None, "error": str(e)})
 
     # 2. Directory sites — address/phone/hours isolated via regex, never the
     # raw snippet. Skipped entirely (no entry) if toggled off.
@@ -165,17 +167,19 @@ def audit():
             res = serp_get({"engine": "google", "q": q})
             organic = res.get("organic_results", [])
             if organic:
-                snippet = organic[0].get("snippet", "") or ""
+                top = organic[0]
+                snippet = top.get("snippet", "") or ""
                 sources.append({
                     "source": label,
                     "address": extract_address(snippet),
                     "phone": extract_phone(snippet),
                     "hours": extract_hours(snippet),
+                    "url": top.get("link"),
                 })
             else:
-                sources.append({"source": label, "address": None, "phone": None, "hours": None})
+                sources.append({"source": label, "address": None, "phone": None, "hours": None, "url": None})
         except Exception as e:
-            sources.append({"source": label, "address": None, "phone": None, "hours": None, "error": str(e)})
+            sources.append({"source": label, "address": None, "phone": None, "hours": None, "url": None, "error": str(e)})
 
     # 3. Bing Maps — needs coordinates from Google Maps. Skipped entirely if
     # toggled off; if on but no coordinates available, still appears with
@@ -194,13 +198,14 @@ def audit():
                         "address": match.get("address"),
                         "phone": match.get("phone"),
                         "hours": match.get("hours"),
+                        "url": match.get("url") or match.get("website"),
                     })
                 else:
-                    sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None})
+                    sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None, "url": None})
             except Exception as e:
-                sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None, "error": str(e)})
+                sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None, "url": None, "error": str(e)})
         else:
-            sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None})
+            sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None, "url": None})
 
     # 4. Apple Maps — same coordinate dependency as Bing Maps above.
     if is_enabled("Apple Maps"):
@@ -215,13 +220,14 @@ def audit():
                         "address": match.get("address"),
                         "phone": match.get("phone") or match.get("phone_number"),
                         "hours": match.get("hours"),
+                        "url": match.get("url") or match.get("website"),
                     })
                 else:
-                    sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None})
+                    sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None, "url": None})
             except Exception as e:
-                sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None, "error": str(e)})
+                sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None, "url": None, "error": str(e)})
         else:
-            sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None})
+            sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None, "url": None})
 
     return jsonify({"sources": sources})
 
