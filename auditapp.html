@@ -52,7 +52,7 @@
 
   <!-- RESULTS: exactly 4 columns, nothing else -->
   <main class="flex-1 mb-6">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-xl">
       <div id="resultsContainer">
         <div class="py-12 text-center text-slate-500 text-sm">
           <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block"></i>
@@ -242,23 +242,27 @@
       const baselines = {};
       FIELDS.forEach(key => { baselines[key] = computeBaseline(sources, key); });
 
+      const engineCell = s => s.url
+        ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 hover:underline">${escapeHtml(s.source)}</a>`
+        : escapeHtml(s.source);
+
       const rows = sources.map(s => `
         <tr>
-          <th class="px-4 py-3 text-left text-sm font-semibold text-white whitespace-nowrap border-t border-slate-800/60">${escapeHtml(s.source)}</th>
-          <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cellHtml(s, 'address', baselines.address)}</td>
-          <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cellHtml(s, 'phone', baselines.phone)}</td>
-          <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cellHtml(s, 'hours', baselines.hours)}</td>
+          <th class="px-3 py-1.5 text-left text-xs font-semibold text-white whitespace-nowrap border-t border-slate-800/60">${engineCell(s)}</th>
+          <td class="px-3 py-1.5 text-xs align-top border-t border-slate-800/60">${cellHtml(s, 'address', baselines.address)}</td>
+          <td class="px-3 py-1.5 text-xs align-top border-t border-slate-800/60">${cellHtml(s, 'phone', baselines.phone)}</td>
+          <td class="px-3 py-1.5 text-xs align-top border-t border-slate-800/60">${cellHtml(s, 'hours', baselines.hours)}</td>
         </tr>`).join('');
 
       container.innerHTML = `
         <div class="overflow-x-auto">
-          <table class="w-full border-collapse">
+          <table class="w-full border-collapse text-xs">
             <thead>
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Engine Name</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Address</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Phone Number</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Hours</th>
+                <th class="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-400 whitespace-nowrap">Engine Name</th>
+                <th class="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-400 whitespace-nowrap">Address</th>
+                <th class="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-400 whitespace-nowrap">Phone Number</th>
+                <th class="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-400 whitespace-nowrap">Hours</th>
               </tr>
             </thead>
             <tbody>
