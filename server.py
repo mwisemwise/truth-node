@@ -13,30 +13,18 @@ CORS(app)
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
 
 DIRECTORY_SITES = [
-    ("Yelp", "yelp.com", "fa-brands fa-yelp"),
-    ("Facebook", "facebook.com", "fa-brands fa-facebook"),
-    ("Better Business Bureau", "bbb.org", "fa-solid fa-building-shield"),
-    ("Foursquare", "foursquare.com", "fa-brands fa-foursquare"),
+    ("Yelp", "yelp.com"),
+    ("Facebook", "facebook.com"),
+    ("Better Business Bureau", "bbb.org"),
+    ("Foursquare", "foursquare.com"),
 ]
 
-MAX_GHOST_LISTINGS = 3
-
-EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-
-# Pulls a US street address (number + street, City, ST ZIP) out of a raw
-# snippet — never returns the whole snippet, only the address-shaped part.
 ADDRESS_RE = re.compile(
     r"\d{1,6}\s+[A-Za-z0-9.'#\- ]+?,\s*[A-Za-z .'\-]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?"
 )
-
-# Standard US phone formats: (417) 335-2133, 417-335-2133, 417.335.2133, +1 417 335 2133
 PHONE_RE = re.compile(
     r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
 )
-
-# Best-effort hours pattern: a day (optionally a day range) followed by a
-# time range like "9 AM - 9 PM". Snippets vary a lot, so this only catches
-# clean formats — anything murkier is left as "not found" rather than guessed.
 HOURS_RE = re.compile(
     r"(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s*(?:[-–—]\s*(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*)?\s*[:\-]?\s*)?"
     r"\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)\s*[-–—]\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM)"
@@ -65,9 +53,6 @@ def extract_hours(text):
 
 
 def google_maps_hours(top):
-    """SerpApi's google_maps engine sometimes returns a plain 'hours' string
-    (e.g. 'Open - Closes 9PM'), sometimes a per-day 'operating_hours' dict.
-    Handle both; return None rather than guessing if neither is present."""
     h = top.get("hours")
     if isinstance(h, str) and h.strip():
         return h.strip()
@@ -99,9 +84,6 @@ def town_in_address(town, address):
 
 
 def best_match_by_name(items, name, title_field="title"):
-    """Same relevance-filter idea as the directory sites: only accept a
-    map-engine result if the business name actually overlaps the query,
-    so we don't attach a same-named business from somewhere else."""
     if not items:
         return None
     name_words = [w.strip(",.") for w in name.lower().split() if len(w.strip(",.")) > 1]
@@ -131,23 +113,20 @@ def audit():
     if not name:
         return jsonify({"error": "Business name is required"}), 400
 
-    # Which sources the frontend currently has toggled on, lowercased to
-    # match each source's label.lower(). If the client doesn't send this
-    # (older callers), fall back to querying everything, as before.
     raw_sources = data.get("sources")
-    enabled = set(s.strip().lower() for s in raw_sources) if isinstance(raw_sources, list) else set()
+    enabled = set(s.strip().lower() for s in raw_sources) if isinstance(raw_sources, list) else None
 
     def is_enabled(label):
-        return label.lower() in enabled
+        return enabled is None or label.lower() in enabled
 
     full_query = f"{name} {town}".strip() if town else name
     sources = []
-    ghosts = []
-    verified_business = None
-    lat, lng = None, None  # populated from the Google Maps match, feeds Bing/Apple below
+    lat, lng = None, None
 
-    # 1. Google Maps — queried only when enabled. If disabled, it is not
-    # queried and does not appear in the response.
+    # 1. Google Maps — now a normal toggle like every other engine. Off =
+    # not queried, not in results, and lat/lng stay None (which means Bing
+    # Maps / Apple Maps below won't have coordinates to work with either —
+    # that's an honest consequence of the dependency, not a bug).
     if is_enabled("Google Maps"):
         try:
             res = serp_get({"engine": "google_maps", "q": full_query, "type": "search"})
@@ -160,87 +139,45 @@ def audit():
 
             if local_results:
                 top = local_results[0]
-                place_id = top.get("place_id", "")
-
                 gps = top.get("gps_coordinates") or {}
                 lat, lng = gps.get("latitude"), gps.get("longitude")
-
                 sources.append({
                     "source": "Google Maps",
-                    "icon": "fa-brands fa-google",
-                    "name": top.get("title") or None,
                     "address": top.get("address") or None,
                     "phone": top.get("phone") or None,
                     "hours": google_maps_hours(top),
-                    "email": None,
-                    "url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else None,
                 })
-                verified_business = {
-                    "title": top.get("title"),
-                    "address": top.get("address"),
-                    "phone": top.get("phone"),
-                    "rating": top.get("rating"),
-                    "reviews": top.get("reviews"),
-                    "map_url": f"https://www.google.com/maps/place/?q=place_id:{place_id}" if place_id else None,
-                }
-
-                for dup in local_results[1:1 + MAX_GHOST_LISTINGS]:
-                    ghosts.append({
-                        "name": dup.get("title", "Unknown"),
-                        "address": dup.get("address", "unknown address"),
-                    })
             else:
-                sources.append({
-                    "source": "Google Maps", "icon": "fa-brands fa-google",
-                    "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                })
+                sources.append({"source": "Google Maps", "address": None, "phone": None, "hours": None})
         except Exception as e:
-            sources.append({
-                "source": "Google Maps", "icon": "fa-brands fa-google",
-                "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                "error": str(e),
-            })
+            sources.append({"source": "Google Maps", "address": None, "phone": None, "hours": None, "error": str(e)})
 
-    # 2. Directory sites — unquoted, broad search so we actually find the
-    # listing. Only the address/phone/hours SHAPES are pulled out of the raw
-    # snippet via regex — never the whole snippet — so a field only ever
-    # shows what belongs in it.
-    for label, domain, icon in DIRECTORY_SITES:
+    # 2. Directory sites — address/phone/hours isolated via regex, never the
+    # raw snippet. Skipped entirely (no entry) if toggled off.
+    for label, domain in DIRECTORY_SITES:
         if not is_enabled(label):
-            continue  # toggled off client-side — skip the query entirely, don't show it
+            continue
         try:
             q = f"site:{domain} {name} {town}".strip()
             res = serp_get({"engine": "google", "q": q})
             organic = res.get("organic_results", [])
             if organic:
-                top = organic[0]
-                raw_title = top.get("title", "")
-                found_title = raw_title.split("-")[0].split("|")[0].strip() if raw_title else None
-                snippet = top.get("snippet", "") or ""
-                email_match = EMAIL_RE.search(snippet)
+                snippet = organic[0].get("snippet", "") or ""
                 sources.append({
-                    "source": label, "icon": icon,
-                    "name": found_title,
+                    "source": label,
                     "address": extract_address(snippet),
                     "phone": extract_phone(snippet),
                     "hours": extract_hours(snippet),
-                    "email": email_match.group(0) if email_match else None,
-                    "url": top.get("link"),
                 })
             else:
-                sources.append({
-                    "source": label, "icon": icon,
-                    "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                })
+                sources.append({"source": label, "address": None, "phone": None, "hours": None})
         except Exception as e:
-            sources.append({
-                "source": label, "icon": icon,
-                "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                "error": str(e),
-            })
+            sources.append({"source": label, "address": None, "phone": None, "hours": None, "error": str(e)})
 
-    # 3. Bing Maps — real map engine, needs coordinates (not just a town
-    # string). Skipped entirely (no entry at all) if toggled off.
+    # 3. Bing Maps — needs coordinates from Google Maps. Skipped entirely if
+    # toggled off; if on but no coordinates available, still appears with
+    # empty fields (it WAS queried/attempted, so it's not excluded — it just
+    # has nothing to report).
     if is_enabled("Bing Maps"):
         if lat and lng:
             try:
@@ -250,34 +187,19 @@ def audit():
                 match = best_match_by_name(items, name)
                 if match:
                     sources.append({
-                        "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
-                        "name": match.get("title"),
+                        "source": "Bing Maps",
                         "address": match.get("address"),
                         "phone": match.get("phone"),
                         "hours": match.get("hours"),
-                        "email": None,
-                        "url": match.get("url") or match.get("website"),
                     })
                 else:
-                    sources.append({
-                        "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
-                        "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                    })
+                    sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None})
             except Exception as e:
-                sources.append({
-                    "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
-                    "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                    "error": str(e),
-                })
+                sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None, "error": str(e)})
         else:
-            sources.append({
-                "source": "Bing Maps", "icon": "fa-brands fa-microsoft",
-                "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                "error": "No coordinates from Google Maps match — skipped",
-            })
+            sources.append({"source": "Bing Maps", "address": None, "phone": None, "hours": None})
 
-    # 4. Apple Maps — same deal, uses `query` + `center` param names instead
-    # of q/cp. Skipped entirely if toggled off.
+    # 4. Apple Maps — same coordinate dependency as Bing Maps above.
     if is_enabled("Apple Maps"):
         if lat and lng:
             try:
@@ -286,36 +208,19 @@ def audit():
                 match = best_match_by_name(items, name)
                 if match:
                     sources.append({
-                        "source": "Apple Maps", "icon": "fa-brands fa-apple",
-                        "name": match.get("title"),
-                        # NOTE: field name unverified against a live payload — check
-                        # a real /search.json?engine=apple_maps response and adjust
-                        # if it's actually "formatted_address" or nested differently.
+                        "source": "Apple Maps",
                         "address": match.get("address"),
                         "phone": match.get("phone") or match.get("phone_number"),
                         "hours": match.get("hours"),
-                        "email": None,
-                        "url": match.get("url") or match.get("website"),
                     })
                 else:
-                    sources.append({
-                        "source": "Apple Maps", "icon": "fa-brands fa-apple",
-                        "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                    })
+                    sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None})
             except Exception as e:
-                sources.append({
-                    "source": "Apple Maps", "icon": "fa-brands fa-apple",
-                    "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                    "error": str(e),
-                })
+                sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None, "error": str(e)})
         else:
-            sources.append({
-                "source": "Apple Maps", "icon": "fa-brands fa-apple",
-                "name": None, "address": None, "phone": None, "hours": None, "email": None, "url": None,
-                "error": "No coordinates from Google Maps match — skipped",
-            })
+            sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None})
 
-    return jsonify({"sources": sources, "ghosts": ghosts, "verified_business": verified_business})
+    return jsonify({"sources": sources})
 
 
 @app.route("/api/health", methods=["GET"])
