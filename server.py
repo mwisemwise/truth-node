@@ -1,10 +1,13 @@
 import os
 import re
+import json
 from urllib.parse import urlparse
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 import requests
+import psycopg2
+import psycopg2.extras
 
 load_dotenv()
 
@@ -12,6 +15,59 @@ app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+
+def get_db():
+    """Returns a new connection, or None if DATABASE_URL isn't set / the DB
+    is unreachable. Persistence is a nice-to-have: audits still run and
+    return results even if saving them fails."""
+    if not DATABASE_URL:
+        return None
+    try:
+        return psycopg2.connect(DATABASE_URL, connect_timeout=5)
+    except Exception:
+        return None
+
+
+def init_db():
+    conn = get_db()
+    if not conn:
+        return
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS audits (
+                    id SERIAL PRIMARY KEY,
+                    business_name TEXT NOT NULL,
+                    town TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    sources JSONB NOT NULL
+                );
+            """)
+    finally:
+        conn.close()
+
+
+def save_audit(name, town, sources):
+    """Stores a completed audit so it can be reopened later without
+    re-querying SerpApi. Failure here never breaks the response to the
+    user — it's logged and swallowed."""
+    conn = get_db()
+    if not conn:
+        return None
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO audits (business_name, town, sources) VALUES (%s, %s, %s) RETURNING id",
+                (name, town, json.dumps(sources)),
+            )
+            return cur.fetchone()[0]
+    except Exception as e:
+        print(f"[audit_log] failed to save audit: {e}")
+        return None
+    finally:
+        conn.close()
 
 DIRECTORY_SITES = [
     ("Yelp", "yelp.com"),
@@ -116,6 +172,9 @@ def best_match_by_name(items, name, title_field="title"):
         if any(w in title for w in name_words):
             return item
     return None
+
+
+init_db()
 
 
 @app.route("/")
@@ -248,7 +307,51 @@ def audit():
         else:
             sources.append({"source": "Apple Maps", "address": None, "phone": None, "hours": None, "url": None})
 
-    return jsonify({"sources": sources})
+    return jsonify({"sources": sources, "audit_id": save_audit(name, town, sources)})
+
+
+@app.route("/api/audits", methods=["GET"])
+def list_audits():
+    conn = get_db()
+    if not conn:
+        return jsonify({"audits": [], "error": "Database not configured"}), 200
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, business_name, town, created_at FROM audits ORDER BY created_at DESC LIMIT 200"
+            )
+            rows = cur.fetchall()
+        return jsonify({"audits": [dict(r, created_at=r["created_at"].isoformat()) for r in rows]})
+    except Exception as e:
+        return jsonify({"audits": [], "error": str(e)}), 200
+    finally:
+        conn.close()
+
+
+@app.route("/api/audits/<int:audit_id>", methods=["GET"])
+def get_audit(audit_id):
+    conn = get_db()
+    if not conn:
+        return jsonify({"error": "Database not configured"}), 500
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, business_name, town, created_at, sources FROM audits WHERE id = %s", (audit_id,)
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Audit not found"}), 404
+        return jsonify({
+            "id": row["id"],
+            "business_name": row["business_name"],
+            "town": row["town"],
+            "created_at": row["created_at"].isoformat(),
+            "sources": row["sources"],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/health", methods=["GET"])
