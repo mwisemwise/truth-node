@@ -53,6 +53,7 @@
   <!-- RESULTS: exactly 4 columns, nothing else -->
   <main class="flex-1 mb-6">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-xl">
+      <div id="resultsMeta" class="hidden px-2 pb-2 text-xs text-slate-400"></div>
       <div id="resultsContainer">
         <div class="py-12 text-center text-slate-500 text-sm">
           <i class="fa-solid fa-magnifying-glass text-2xl mb-2 block"></i>
@@ -61,6 +62,17 @@
       </div>
     </div>
   </main>
+
+  <!-- PAST AUDITS: saved results you can reopen without re-running the search -->
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl mb-6">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-bold tracking-widest text-slate-400 uppercase">Past Audits</span>
+      <button onclick="loadAuditList()" class="text-xs text-slate-500 hover:text-slate-300">
+        <i class="fa-solid fa-rotate"></i> Refresh
+      </button>
+    </div>
+    <div id="pastAuditsList" class="text-xs text-slate-500">Loading...</div>
+  </div>
 
   <script>
     const form = document.getElementById('auditForm');
@@ -170,13 +182,74 @@
 
         const data = await response.json();
         stopLoadingAnimation();
+        showLiveMeta(name, town);
         renderResults(data);
+        loadAuditList();
 
       } catch (err) {
         stopLoadingAnimation();
         container.innerHTML = `<div class="py-6 text-center text-red-400">Couldn't complete the audit: ${escapeHtml(err.message)}</div>`;
       }
     }
+
+    function showLiveMeta(name, town) {
+      const meta = document.getElementById('resultsMeta');
+      meta.classList.remove('hidden');
+      meta.innerHTML = `<i class="fa-solid fa-bolt text-blue-400"></i> Live result — ${escapeHtml(name)}${town ? ', ' + escapeHtml(town) : ''}`;
+    }
+
+    function showSavedMeta(name, town, createdAt) {
+      const meta = document.getElementById('resultsMeta');
+      meta.classList.remove('hidden');
+      const dateStr = new Date(createdAt).toLocaleString();
+      meta.innerHTML = `<i class="fa-solid fa-clock-rotate-left text-slate-500"></i> Saved audit — ${escapeHtml(name)}${town ? ', ' + escapeHtml(town) : ''} — ${escapeHtml(dateStr)}`;
+    }
+
+    async function loadAuditList() {
+      const list = document.getElementById('pastAuditsList');
+      try {
+        const res = await fetch('/api/audits');
+        const data = await res.json();
+        const audits = data.audits || [];
+
+        if (data.error === 'Database not configured') {
+          list.innerHTML = `<span class="text-slate-600">Audit history isn't set up on this server yet.</span>`;
+          return;
+        }
+        if (audits.length === 0) {
+          list.innerHTML = `<span class="text-slate-600">No saved audits yet — run one above.</span>`;
+          return;
+        }
+
+        list.innerHTML = audits.map(a => `
+          <button onclick="openSavedAudit(${a.id})"
+                  class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-800 flex items-center justify-between gap-3 text-slate-300">
+            <span class="truncate">${escapeHtml(a.business_name)}${a.town ? ', ' + escapeHtml(a.town) : ''}</span>
+            <span class="text-slate-500 whitespace-nowrap">${escapeHtml(new Date(a.created_at).toLocaleDateString())}</span>
+          </button>`).join('');
+      } catch (err) {
+        list.innerHTML = `<span class="text-slate-600">Couldn't load audit history.</span>`;
+      }
+    }
+
+    async function openSavedAudit(id) {
+      const container = document.getElementById('resultsContainer');
+      container.innerHTML = `<div class="py-8 text-center text-slate-500 text-sm"><i class="fa-solid fa-circle-notch fa-spin"></i></div>`;
+      try {
+        const res = await fetch(`/api/audits/${id}`);
+        if (!res.ok) throw new Error('Audit not found');
+        const data = await res.json();
+        document.getElementById('bizName').value = data.business_name || '';
+        document.getElementById('bizTown').value = data.town || '';
+        showSavedMeta(data.business_name, data.town, data.created_at);
+        renderResults({ sources: data.sources });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) {
+        container.innerHTML = `<div class="py-6 text-center text-red-400">Couldn't load that audit: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    loadAuditList();
 
     function normalize(val) {
       return (val || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
