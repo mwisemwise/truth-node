@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Truth Node — Live Audit</title>
+  <title>Synergy — Live Audit</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
   <style>
     body { -webkit-tap-highlight-color: transparent; }
     .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
@@ -14,7 +15,7 @@
     .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: .2s; }
     .toggle-switch input:checked + .toggle-slider { background: #2563eb; }
     .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
-    .toggle-switch input:disabled + .toggle-slider { opacity: .35; cursor: not-allowed; }
+    .diff-flag { color: #FF0000; background-color: #FFFF00; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between p-4 md:p-6">
@@ -41,7 +42,7 @@
     </form>
   </header>
 
-  <!-- SEARCH ENGINES TOGGLE BAR -->
+  <!-- SEARCH ENGINES TOGGLE BAR (input control — not part of the results layout) -->
   <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl mb-6">
     <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
       <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mr-2">Search Engines</span>
@@ -49,7 +50,7 @@
     </div>
   </div>
 
-  <!-- RESULTS -->
+  <!-- RESULTS: exactly 4 columns, nothing else -->
   <main class="flex-1 mb-6">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
       <div id="resultsContainer">
@@ -65,42 +66,35 @@
     const form = document.getElementById('auditForm');
     form.addEventListener('submit', runAudit);
 
-    // Every engine in the toggle bar. `match` is the exact lowercase label
-    // the backend uses in its `source` field — must match exactly, or a
-    // source falls through unmatched. Google Maps is locked ON: it's the
-    // core identity lookup the backend needs internally.
+    // `match` is the exact lowercase label the backend uses in its
+    // `source` field — must match exactly. Every engine here is a normal
+    // toggle; none are locked, per the strict exclusion requirement.
     const ENGINES = [
-      { match: 'google maps',             label: 'Google Maps', icon: 'fa-brands fa-google', color: '#4285F4' },
-      { match: 'yelp',                    label: 'Yelp',        icon: 'fa-brands fa-yelp',   color: '#FF1A1A' },
-      { match: 'facebook',                label: 'Facebook',    icon: 'fa-brands fa-facebook', color: '#1877F2' },
-      { match: 'better business bureau',  label: 'BBB',         icon: 'fa-solid fa-building-shield', color: '#94a3b8' },
-      { match: 'foursquare',              label: 'Foursquare',  icon: 'fa-solid fa-location-crosshairs', color: '#F94877' },
-      { match: 'bing maps',               label: 'Bing Maps',   icon: 'fa-brands fa-microsoft', color: '#94a3b8' },
-      { match: 'apple maps',              label: 'Apple Maps',  icon: 'fa-brands fa-apple', color: '#e2e8f0' },
+      { match: 'google maps',            label: 'Google Maps', icon: 'fa-brands fa-google', color: '#4285F4' },
+      { match: 'yelp',                   label: 'Yelp',        icon: 'fa-brands fa-yelp',   color: '#FF1A1A' },
+      { match: 'facebook',               label: 'Facebook',    icon: 'fa-brands fa-facebook', color: '#1877F2' },
+      { match: 'better business bureau', label: 'BBB',         icon: 'fa-solid fa-building-shield', color: '#94a3b8' },
+      { match: 'foursquare',             label: 'Foursquare',  icon: 'fa-solid fa-location-crosshairs', color: '#F94877' },
+      { match: 'bing maps',              label: 'Bing Maps',   icon: 'fa-brands fa-microsoft', color: '#94a3b8' },
+      { match: 'apple maps',             label: 'Apple Maps',  icon: 'fa-brands fa-apple', color: '#e2e8f0' },
     ];
 
-    const engineState = {
-      'google maps': true,
-      'yelp': true,
-      'facebook': true,
-      'better business bureau': false,
-      'foursquare': false,
-      'bing maps': false,
-      'apple maps': false
-    };
+    const engineState = {};
+    ENGINES.forEach(e => { engineState[e.match] = true; });
 
     let loadingInterval = null;
+    const FIELDS = ['address', 'phone', 'hours'];
 
     function renderEngineToggles() {
       const wrap = document.getElementById('engineToggles');
       wrap.innerHTML = ENGINES.map(e => `
-        <label class="flex items-center gap-2 'cursor-pointer'">
+        <label class="flex items-center gap-2 cursor-pointer">
           <span class="toggle-switch">
-            <input type="checkbox" data-engine="${e.match}" ${engineState[e.match] ? 'checked' : ''} ''>
+            <input type="checkbox" data-engine="${e.match}" ${engineState[e.match] ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </span>
           <i class="${e.icon} text-sm" style="color:${e.color}"></i>
-          <span class="text-sm text-slate-200">${e.label}''</span>
+          <span class="text-sm text-slate-200">${e.label}</span>
         </label>`).join('');
 
       wrap.querySelectorAll('input[data-engine]').forEach(input => {
@@ -111,14 +105,13 @@
     }
     renderEngineToggles();
 
-    // Matches a backend `source` label back to its ENGINES entry.
     function engineMeta(sourceLabel) {
       const norm = (sourceLabel || '').toLowerCase().trim();
-      return ENGINES.find(e => e.match === norm) || ENGINES.find(e => norm.includes(e.match)) || null;
+      return ENGINES.find(e => e.match === norm) || null;
     }
 
-    // A source we don't recognize defaults to HIDDEN — toggles are a
-    // reliable on/off switch, nothing unmapped sneaks into the table.
+    // A source we don't recognize is excluded outright — toggles must be a
+    // reliable on/off switch, nothing unmapped appears regardless of state.
     function activeSources(sources) {
       return sources.filter(s => {
         const meta = engineMeta(s.source);
@@ -185,69 +178,87 @@
       }
     }
 
-    function normalizeExact(value) {
-      return String(value ?? '').toLowerCase().replace(/&/g, 'and').replace(/[.,#'’]/g, '').replace(/\s+/g, ' ').trim();
+    function normalize(val) {
+      return (val || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
     }
 
-    function exactDataPass(source, reference) {
-      if (!source || source.error || !reference || reference.error) return false;
-      return ['name', 'address', 'phone', 'hours'].every(key => {
-        const a = normalizeExact(source[key]);
-        const b = normalizeExact(reference[key]);
-        return !!a && !!b && a === b;
+    // Baseline = the most common normalized value for this field among
+    // active sources that actually have one. Ties break in favor of
+    // whichever value appeared first. Returns null if fewer than 2 sources
+    // have a value (nothing meaningful to compare).
+    function computeBaseline(sources, key) {
+      const counts = {};
+      const original = {};
+      let nonEmpty = 0;
+      sources.forEach(s => {
+        const raw = s[key];
+        if (!raw) return;
+        nonEmpty++;
+        const norm = normalize(raw);
+        if (!(norm in counts)) { counts[norm] = 0; original[norm] = raw; }
+        counts[norm]++;
       });
+      if (nonEmpty < 2) return null;
+      let bestNorm = null, bestCount = -1;
+      Object.entries(counts).forEach(([norm, count]) => {
+        if (count > bestCount) { bestCount = count; bestNorm = norm; }
+      });
+      return { norm: bestNorm, original: original[bestNorm] };
     }
 
-    // One row per active engine. Only Name / Address / Phone / Hours are displayed,
-    // followed by a deterministic exact-data PASS/FAIL verdict. Missing data is FAIL.
+    // Word-level diff: returns HTML where the words present in `candidate`
+    // but not in the baseline are wrapped in the red-text/yellow-highlight
+    // span required by spec. Unchanged words render plain.
+    function diffHtml(baseline, candidate) {
+      if (typeof Diff === 'undefined' || !baseline) return escapeHtml(candidate);
+      const parts = Diff.diffWords(baseline, candidate);
+      return parts
+        .filter(p => !p.removed)
+        .map(p => p.added ? `<span class="diff-flag">${escapeHtml(p.value)}</span>` : escapeHtml(p.value))
+        .join('');
+    }
+
+    function cellHtml(source, key, baseline) {
+      if (source.error || !source[key]) {
+        return `<span class="text-slate-500">N/A</span>`;
+      }
+      const value = source[key];
+      if (!baseline || normalize(value) === baseline.norm) {
+        return `<span class="text-slate-100">${escapeHtml(value)}</span>`;
+      }
+      return `<span class="text-slate-100">${diffHtml(baseline.original, value)}</span>`;
+    }
+
+    // Exactly 4 columns: Engine Name, Address, Phone, Hours. Nothing else.
     function renderResults(data) {
       const container = document.getElementById('resultsContainer');
       const sources = activeSources(data.sources || []);
-      const reference = sources.find(s => engineMeta(s.source)?.match === 'google maps') || null;
 
       if (sources.length === 0) {
         container.innerHTML = `<div class="py-8 text-center text-slate-500 text-sm">No engines toggled on — flip a switch above to see results.</div>`;
         return;
       }
 
-      const cell = (s, key) => {
-        if (s.error) return `<span class="text-red-400 text-xs">Lookup failed</span>`;
-        const value = s[key];
-        return value
-          ? `<span class="text-slate-100">${escapeHtml(value)}</span>`
-          : `<span class="text-slate-500 italic">Not found</span>`;
-      };
+      const baselines = {};
+      FIELDS.forEach(key => { baselines[key] = computeBaseline(sources, key); });
 
-      const rows = sources.map(s => {
-        const meta = engineMeta(s.source);
-        const icon = meta ? meta.icon : 'fa-solid fa-globe';
-        const color = meta ? meta.color : '#94a3b8';
-        return `
-          <tr>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-white whitespace-nowrap border-t border-slate-800/60">
-              <span class="flex items-center gap-2">
-                <i class="${icon} text-sm" style="color:${color}"></i>${escapeHtml(s.source)}
-              </span>
-            </th>
-            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'name')}</td>
-            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'address')}</td>
-            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'phone')}</td>
-            <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cell(s, 'hours')}</td>
-            <td class="px-4 py-3 text-sm font-semibold align-top border-t border-slate-800/60"><span class="${exactDataPass(s, reference) ? 'text-emerald-400' : 'text-red-400'}">${exactDataPass(s, reference) ? 'PASS' : 'FAIL'}</span></td>
-          </tr>`;
-      }).join('');
+      const rows = sources.map(s => `
+        <tr>
+          <th class="px-4 py-3 text-left text-sm font-semibold text-white whitespace-nowrap border-t border-slate-800/60">${escapeHtml(s.source)}</th>
+          <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cellHtml(s, 'address', baselines.address)}</td>
+          <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cellHtml(s, 'phone', baselines.phone)}</td>
+          <td class="px-4 py-3 text-sm align-top border-t border-slate-800/60">${cellHtml(s, 'hours', baselines.hours)}</td>
+        </tr>`).join('');
 
       container.innerHTML = `
         <div class="overflow-x-auto">
           <table class="w-full border-collapse">
             <thead>
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Engine</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Name</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Engine Name</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Address</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Phone</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Phone Number</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Hours</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 whitespace-nowrap">Exact Data</th>
               </tr>
             </thead>
             <tbody>
