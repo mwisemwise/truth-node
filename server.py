@@ -182,6 +182,11 @@ def index():
     return send_from_directory(".", "auditapp.html")
 
 
+@app.route("/results")
+def results_page():
+    return send_from_directory(".", "results.html")
+
+
 @app.route("/api/audit", methods=["POST"])
 def audit():
     if not SERPAPI_KEY:
