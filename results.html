@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Truth Node — NAP Alignment Audit Results</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; }
+    .status-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+    .status-mismatch { background: #ef4444; }
+    .status-aligned { background: #22c55e; }
+    .status-missing { background: #f59e0b; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <main class="mx-auto max-w-5xl px-5 py-8 md:px-8 md:py-12">
+    <div id="page" class="space-y-6">
+      <div class="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center text-slate-400">Loading audit results...</div>
+    </div>
+  </main>
+
+<script>
+const FIELDS = [
+  { key: 'address', label: 'Address' },
+  { key: 'phone', label: 'Phone Number' },
+  { key: 'hours', label: 'Hours' }
+];
+
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.innerText = value ?? '';
+  return div.innerHTML;
+}
+
+function normalize(value) {
+  return (value || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function baselineFor(sources, key) {
+  const values = [];
+  const counts = new Map();
+  const originals = new Map();
+
+  for (const source of sources) {
+    const raw = source[key];
+    if (!raw) continue;
+    const norm = normalize(raw);
+    if (!norm) continue;
+    if (!counts.has(norm)) originals.set(norm, raw);
+    counts.set(norm, (counts.get(norm) || 0) + 1);
+    values.push(norm);
+  }
+
+  if (values.length < 2) return null;
+
+  let winner = null;
+  let count = -1;
+  for (const [norm, n] of counts.entries()) {
+    if (n > count) {
+      winner = norm;
+      count = n;
+    }
+  }
+  return { norm: winner, original: originals.get(winner) };
+}
+
+function analyze(sources) {
+  let discrepancies = 0;
+  const rows = [];
+
+  for (const field of FIELDS) {
+    const baseline = baselineFor(sources, field.key);
+    const present = sources.filter(s => s[field.key]);
+    let mismatches = 0;
+
+    if (baseline) {
+      mismatches = present.filter(s => normalize(s[field.key]) !== baseline.norm).length;
+      discrepancies += mismatches;
+    }
+
+    rows.push({
+      ...field,
+      baseline,
+      presentCount: present.length,
+      mismatches
+    });
+  }
+
+  return { discrepancies, rows };
+}
+
+function sourceStatus(source, key, baseline) {
+  if (!source[key]) return 'missing';
+  if (!baseline || normalize(source[key]) === baseline.norm) return 'aligned';
+  return 'mismatch';
+}
+
+function statusLabel(status) {
+  if (status === 'mismatch') return 'Mismatch';
+  if (status === 'missing') return 'No data';
+  return 'Aligned';
+}
+
+function render(data) {
+  const sources = (data.sources || []).filter(s => s && !s.error);
+  const { discrepancies, rows } = analyze(sources);
+  const ranAt = data.audit_ran_at || data.created_at || new Date().toISOString();
+  const dateText = new Date(ranAt).toLocaleDateString(undefined, {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  const intro = discrepancies === 0
+    ? 'We found no discrepancies among the available business information we were able to compare.'
+    : 'We found ' + discrepancies + ' discrepanc' + (discrepancies === 1 ? 'y' : 'ies') +
+      ' affecting your online alignment, which can reduce confidence in your business information across Google, ChatGPT, and other search and AI systems.';
+
+  const sourceCards = sources.map(source => {
+    const cells = rows.map(row => {
+      const status = sourceStatus(source, row.key, row.baseline);
+      return '<div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">' +
+        '<div class="mb-2 flex items-center justify-between gap-3">' +
+          '<span class="text-xs font-semibold uppercase tracking-wider text-slate-500">' + escapeHtml(row.label) + '</span>' +
+          '<span class="flex items-center gap-2 text-xs ' +
+            (status === 'mismatch' ? 'text-red-400' : status === 'missing' ? 'text-amber-400' : 'text-green-400') + '">' +
+            '<span class="status-dot ' + (status === 'mismatch' ? 'status-mismatch' : status === 'missing' ? 'status-missing' : 'status-aligned') + '"></span>' +
+            statusLabel(status) +
+          '</span>' +
+        '</div>' +
+        '<div class="text-sm text-slate-200 break-words">' + escapeHtml(source[row.key] || 'No data reported') + '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<section class="rounded-2xl border border-slate-800 bg-slate-900 p-5 md:p-6">' +
+      '<div class="mb-4 flex flex-wrap items-center justify-between gap-3">' +
+        '<h3 class="text-lg font-semibold text-white">' + escapeHtml(source.source || 'Source') + '</h3>' +
+        (source.url ? '<a class="text-xs text-blue-400 hover:text-blue-300 hover:underline" href="' + escapeHtml(source.url) + '" target="_blank" rel="noopener noreferrer">View source</a>' : '') +
+      '</div>' +
+      '<div class="grid gap-3 md:grid-cols-3">' + cells + '</div>' +
+    '</section>';
+  }).join('');
+
+  const comparisonRows = rows.map(row => {
+    const values = sources.map(s => {
+      const status = sourceStatus(s, row.key, row.baseline);
+      return '<td class="border-t border-slate-800 px-4 py-3 align-top text-sm">' +
+        '<div class="mb-1 text-[11px] uppercase tracking-wider ' +
+          (status === 'mismatch' ? 'text-red-400' : status === 'missing' ? 'text-amber-400' : 'text-green-400') + '">' +
+          statusLabel(status) +
+        '</div>' +
+        '<div class="break-words text-slate-200">' + escapeHtml(s[row.key] || 'No data reported') + '</div>' +
+      '</td>';
+    }).join('');
+    return '<tr><th class="border-t border-slate-800 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">' +
+      escapeHtml(row.label) + '</th>' + values + '</tr>';
+  }).join('');
+
+  document.getElementById('page').innerHTML =
+    '<header class="rounded-3xl border border-slate-800 bg-slate-900 p-7 shadow-2xl md:p-10">' +
+      '<div class="mb-8 flex flex-wrap items-start justify-between gap-5">' +
+        '<div>' +
+          '<div class="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-blue-400">NAP Alignment Audit</div>' +
+          '<h1 class="text-3xl font-bold tracking-tight text-white md:text-4xl">' + escapeHtml(data.business_name || 'Business') + '</h1>' +
+          '<p class="mt-2 text-sm text-slate-400">Audited by Truth Node · ' + escapeHtml(dateText) + '</p>' +
+        '</div>' +
+        '<div class="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-right">' +
+          '<div class="text-3xl font-bold text-white">' + discrepancies + '</div>' +
+          '<div class="text-xs uppercase tracking-wider text-slate-500">' + (discrepancies === 1 ? 'discrepancy found' : 'discrepancies found') + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="rounded-2xl border ' + (discrepancies ? 'border-amber-500/30 bg-amber-500/5' : 'border-green-500/30 bg-green-500/5') + ' p-5">' +
+        '<h2 class="text-xl font-semibold text-white">Your Online Alignment Results</h2>' +
+        '<p class="mt-3 leading-7 text-slate-300">' + escapeHtml(intro) + '</p>' +
+      '</div>' +
+
+      '<div class="mt-7 grid gap-4 md:grid-cols-3">' +
+        '<div class="rounded-xl bg-slate-950/70 p-4"><div class="text-xs uppercase tracking-wider text-slate-500">Why it matters</div><p class="mt-2 text-sm leading-6 text-slate-300">Consistent business information gives search and AI systems a clearer, more reliable business identity.</p></div>' +
+        '<div class="rounded-xl bg-slate-950/70 p-4"><div class="text-xs uppercase tracking-wider text-slate-500">What fixing helps</div><p class="mt-2 text-sm leading-6 text-slate-300">Correcting discrepancies helps increase confidence in the information associated with your business.</p></div>' +
+        '<div class="rounded-xl bg-slate-950/70 p-4"><div class="text-xs uppercase tracking-wider text-slate-500">AI citations</div><p class="mt-2 text-sm leading-6 text-slate-300">More consistent source information gives AI systems cleaner information to work from when generating business answers and citations.</p></div>' +
+      '</div>' +
+    '</header>' +
+
+    '<section class="rounded-2xl border border-slate-800 bg-slate-900 p-6 md:p-7">' +
+      '<div class="mb-5"><h2 class="text-xl font-semibold text-white">Source Comparison</h2><p class="mt-1 text-sm text-slate-400">Only information actually returned by the audited sources is shown.</p></div>' +
+      '<div class="overflow-x-auto"><table class="w-full min-w-[720px] border-collapse">' +
+        '<thead><tr><th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-slate-500">Information</th>' +
+          sources.map(s => '<th class="px-4 py-3 text-left text-xs uppercase tracking-wider text-slate-500">' + escapeHtml(s.source || 'Source') + '</th>').join('') +
+        '</tr></thead><tbody>' + comparisonRows + '</tbody>' +
+      '</table></div>' +
+    '</section>' +
+
+    '<section>' +
+      '<div class="mb-4"><h2 class="text-xl font-semibold text-white">Audit Details</h2><p class="mt-1 text-sm text-slate-400">The source-by-source record used for this audit.</p></div>' +
+      '<div class="space-y-4">' + (sourceCards || '<div class="rounded-2xl border border-slate-800 bg-slate-900 p-6 text-slate-400">No source data was returned.</div>') + '</div>' +
+    '</section>' +
+
+    '<footer class="border-t border-slate-800 pt-6 text-center text-xs text-slate-500">Truth Node · Online Alignment Audit</footer>';
+}
+
+async function load() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('audit_id');
+
+    if (id) {
+      const response = await fetch('/api/audits/' + encodeURIComponent(id));
+      if (!response.ok) throw new Error('Saved audit could not be loaded.');
+      const data = await response.json();
+      render(data);
+      return;
+    }
+
+    const stored = sessionStorage.getItem('truthNodeAudit');
+    if (!stored) throw new Error('No audit results were supplied.');
+    render(JSON.parse(stored));
+  } catch (error) {
+    document.getElementById('page').innerHTML =
+      '<div class="rounded-2xl border border-red-500/30 bg-slate-900 p-8 text-center">' +
+      '<h1 class="text-xl font-semibold text-white">Audit results unavailable</h1>' +
+      '<p class="mt-2 text-sm text-red-300">' + escapeHtml(error.message) + '</p>' +
+      '<a href="/" class="mt-5 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Return to audit</a>' +
+      '</div>';
+  }
+}
+load();
+</script>
+</body>
+</html>
